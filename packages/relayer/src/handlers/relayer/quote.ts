@@ -44,9 +44,18 @@ export async function relayQuoteHandler(
   const { feeBPS, path } = quote;
   const recipient = req.body.recipient ? getAddress(req.body.recipient.toString()) : undefined;
 
+  // Calculate extra ETH amount that user will receive
+  let extraGasAmountETH: bigint | undefined;
+  if (extraGas) {
+    const gasPrice = await web3Provider.getGasPrice(chainId);
+    // This is the amount of ETH that will be sent to the recipient
+    extraGasAmountETH = gasPrice * quoteService.extraGasFundAmount;
+  }
+
   const quoteResponse = new QuoteMarshall({
     baseFeeBPS: config.fee_bps,
     feeBPS,
+    extraGasAmountETH,
   });
 
   if (recipient) {

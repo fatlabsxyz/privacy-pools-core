@@ -64,7 +64,8 @@ export class QuoteMarshall extends RelayerMarshall {
     return {
       baseFeeBPS: this.response.baseFeeBPS.toString(),
       feeBPS: this.response.feeBPS.toString(),
-      feeCommitment: this.response.feeCommitment
+      feeCommitment: this.response.feeCommitment,
+      ...(this.response.extraGasAmountETH !== undefined && { extraGasAmountETH: this.response.extraGasAmountETH.toString() })
     }
   }
 }

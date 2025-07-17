@@ -14,6 +14,7 @@ export interface QuotetBody {
 export interface QuoteResponse {
   baseFeeBPS: bigint,
   feeBPS: bigint,
+  extraGasAmountETH?: bigint,
   feeCommitment?: {
     expiration: number,
     withdrawalData: `0x${string}`,

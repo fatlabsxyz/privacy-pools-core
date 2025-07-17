@@ -7,6 +7,7 @@ import { quoteService } from "../../services/index.js";
 import { QuoteMarshall } from "../../types.js";
 import { encodeWithdrawalData, isFeeReceiverSameAsSigner, isNative } from "../../utils.js";
 import { privateKeyToAccount } from "viem/accounts";
+import { QuoteFee } from "../../services/quote.service.js";
 
 // const TIME_20_SECS = 20 * 1000;
 const TIME_60_SECS = 60 * 1000;
@@ -32,7 +33,7 @@ export async function relayQuoteHandler(
     extraGas = false;
   }
 
-  let quote;
+  let quote: QuoteFee;
   try {
     quote = await quoteService.quoteFeeBPSNative({
       chainId, amountIn, assetAddress, baseFeeBPS: config.fee_bps, extraGas: extraGas
@@ -41,21 +42,19 @@ export async function relayQuoteHandler(
     return next(e);
   }
 
-  const { feeBPS, path } = quote;
+  const { feeBPS, path, gasPrice, extraGasFundAmount, relayTxCost, extraGasTxCost } = quote;
   const recipient = req.body.recipient ? getAddress(req.body.recipient.toString()) : undefined;
-
-  // Calculate extra ETH amount that user will receive
-  let extraGasAmountETH: bigint | undefined;
-  if (extraGas) {
-    const gasPrice = await web3Provider.getGasPrice(chainId);
-    // This is the amount of ETH that will be sent to the recipient
-    extraGasAmountETH = gasPrice * quoteService.extraGasFundAmount;
-  }
+  const detail = {
+    relayTxCost: { gas: relayTxCost, eth: relayTxCost * gasPrice },
+    extraGasFundAmount: extraGasFundAmount ? { gas: extraGasFundAmount, eth: extraGasFundAmount * gasPrice } : undefined,
+    extraGasTxCost: extraGasTxCost ? { gas: extraGasTxCost, eth: extraGasTxCost * gasPrice } : undefined,
+  };
 
   const quoteResponse = new QuoteMarshall({
     baseFeeBPS: config.fee_bps,
     feeBPS,
-    extraGasAmountETH,
+    gasPrice,
+    detail,
   });
 
   if (recipient) {
@@ -75,7 +74,7 @@ export async function relayQuoteHandler(
       feeRecipient: getAddress(feeReceiverAddress),
       recipient,
       relayFeeBPS: feeBPS
-    })
+    });
     const expiration = Number(new Date()) + EXPIRATION_TIME;
     const relayerCommitment = { withdrawalData, expiration, amount: amountIn, extraGas };
     const signedRelayerCommitment = await web3Provider.signRelayerCommitment(chainId, relayerCommitment);

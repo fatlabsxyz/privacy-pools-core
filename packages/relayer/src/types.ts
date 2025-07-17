@@ -61,11 +61,18 @@ export class QuoteMarshall extends RelayerMarshall {
   }
 
   override toJSON(): object {
+    const detail = Object.fromEntries(
+      Object.entries(this.response.detail)
+        .map(([k, v]) => {
+          return [k, v ? { gas: v.gas.toString(), eth: v.eth.toString() } : undefined];
+        })
+    );
     return {
       baseFeeBPS: this.response.baseFeeBPS.toString(),
       feeBPS: this.response.feeBPS.toString(),
+      gasPrice: this.response.gasPrice.toString(),
       feeCommitment: this.response.feeCommitment,
-      ...(this.response.extraGasAmountETH !== undefined && { extraGasAmountETH: this.response.extraGasAmountETH.toString() })
-    }
+      detail,
+    };
   }
 }

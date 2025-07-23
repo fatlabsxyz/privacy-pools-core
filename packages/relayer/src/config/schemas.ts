@@ -17,8 +17,8 @@ export const zAddress = z
 // Quote timeout validation schema
 export const zQuoteTime = z
   .number()
-  .min(12, { message: 'Quote timeout must be at least 12 seconds' })
-  .transform((v) => v * 1000);    // convert to ms
+  .min(5, { message: 'Quote timeout must be at least 5 seconds' })
+  .transform((v) => v * 1000);                    // convert to ms
 
 
 // Private key validation schema

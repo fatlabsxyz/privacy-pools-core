@@ -14,5 +14,8 @@ node_modules
 # Cursor rules files
 .cursorrules*
 
+# Transpilation results
+dist/
+
 # Typecript build artifacts
 *.tsbuildinfo

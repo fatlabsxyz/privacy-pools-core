@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { getAddress } from "viem";
-import path from "node:path";
+// import { getAddress } from "viem";
+// import path from "node:path";
 
 const zNonNegativeBigInt = z
   .string()
@@ -12,7 +12,7 @@ export const zAddress = z
   .string()
   .regex(/^0x[0-9a-fA-F]+/)
   .length(42)
-  .transform((v) => getAddress(v));
+  // .transform((v) => getAddress(v));   // TODO check if we can validate the address with starknetjs
 
 // Quote timeout validation schema
 export const zQuoteTime = z
@@ -50,27 +50,25 @@ export const zAssetConfig = z.object({
 
 // Native currency configuration schema
 export const zNativeCurrency = z.object({
-  name: z.string().default("Ether"),
+  name: z.string().default("Ether"), //TODO this should be strk???
   symbol: z.string().default("ETH"),
   decimals: z.number().default(18)
 });
 
 // Chain configuration schema
 export const zChainConfig = z.object({
-  chain_id: z.string().or(z.number()).pipe(z.coerce.number().positive()),
-  chain_name: z.string(),
+  chain_name: z.string().optional(),
   rpc_url: z.string().url(),
-  max_gas_price: zNonNegativeBigInt.optional(),
-  fee_receiver_address: zAddress.optional(),
-  signer_private_key: zPkey.optional(),
+  max_gas_price: zNonNegativeBigInt,
+  fee_receiver_address: zAddress,
+  signer_private_key: zPkey,
   entrypoint_address: zAddress.optional(),
   supported_assets: z.array(zAssetConfig).optional(),
-  native_currency: zNativeCurrency.optional(),
+  native_currency: zNativeCurrency.optional()
 });
 
 // Common configuration schema
 export const zCommonConfig = z.object({
-  sqlite_db_path: z.string().transform((p) => path.resolve(p)),
   cors_allow_all: z.boolean().default(true),
   allowed_domains: z.array(z.string().url()).default(["https://testnet.privacypools.com, https://prod-privacy-pool-ui.vercel.app, https://staging-privacy-pool-ui.vercel.app, https://dev-privacy-pool-ui.vercel.app, http://localhost:3000"]),
 });
@@ -87,8 +85,8 @@ export const zDefaultConfig = z.object({
 export const zConfig = z
   .object({
     defaults: zDefaultConfig,
-    chains: z.array(zChainConfig),
-    sqlite_db_path: zCommonConfig.shape.sqlite_db_path,
+    starknet_chain: zChainConfig,
+    sepolia_chain: zChainConfig,
     cors_allow_all: zCommonConfig.shape.cors_allow_all,
     allowed_domains: zCommonConfig.shape.allowed_domains,
   })

@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { getAddress } from "viem";
 import { getAssetConfig, getFeeReceiverAddress, getQuoteExpirationTime, getSignerPrivateKey } from "../../config/index.js";
 import { QuoterError } from "../../exceptions/base.exception.js";
-import { web3Provider } from "../../providers/index.js";
+import { StarknetProvider } from "../../providers/index.js";
 import { quoteService } from "../../services/index.js";
 import { QuoteMarshall } from "../../types.js";
 import { encodeWithdrawalData, isFeeReceiverSameAsSigner, isNative } from "../../utils.js";

@@ -2,6 +2,7 @@ import { ChainName, ChainConfig} from "../config/types.js";
 import { getChainConfig } from "../config/index.js";
 import { Account, RpcProvider, CallData, CallDetails, Call, BigNumberish } from 'starknet';
 import { Address } from "viem";
+import { FeeCommitment } from "../interfaces/relayer/common.js";
 
 interface Provider {
   client(chainName: ChainName): RpcProvider;
@@ -25,7 +26,7 @@ type TxData = {
 }
 
 /// Class that represens both Starknet and Sepolia chains
-class StarknetProvider implements Provider {
+export class StarknetProvider implements Provider {
   chains: Map<ChainName, ChainProperties>; 
   
   constructor () {
@@ -61,9 +62,16 @@ class StarknetProvider implements Provider {
 
     return fee.suggestedMaxFee;
   }
-  //TODO: implement these::::
-  //signRelayerCommitment
-  //verifyRelayerCommitment
+
+  signRelayerCommitment(chainName: ChainName, feeCommitment: FeeCommitment): boolean {
+  //TODO: implement this
+    return true;
+  }
+
+  verifyRelayerCommitment(chainName: ChainName, feeCommitment: FeeCommitment): boolean {
+  //TODO: implement this
+    return true;
+  }
 }
 
  const chainExpand = (chain: ChainName): [ChainName, ChainProperties] => {

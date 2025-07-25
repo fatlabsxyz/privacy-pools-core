@@ -1,7 +1,34 @@
-import { Address } from "viem/accounts";
 import { RelayerResponse } from "./interfaces/relayer/request.js";
 import { QuoteResponse } from "./interfaces/relayer/quote.js";
 import { FeeCommitment } from "./interfaces/relayer/common.js";
+
+
+// -------- idk where to put these yet --------
+/// Ethereum address
+export type Address = `0x${string}` & { length: 66 };
+
+/// Hashed value
+export type Hash = bigint & {
+    readonly __brand: unique symbol;
+};
+export type Withdrawal = String;
+export type SdkWithdrawal = String;
+export type WithdrawalProof = String;
+export type WithdrawalPayload = {
+  readonly proof: WithdrawalProof;
+  readonly withdrawal: SdkWithdrawal;
+  readonly scope: bigint;
+  readonly feeCommitment?: FeeCommitment;
+};
+export class ContractInteractionsService {
+  relay(proof: WithdrawalProof, withdrawal: SdkWithdrawal, scope: bigint): Hash {
+    return 1n as Hash;
+  }
+}
+export type StarknetPrivacyPoolSDK = String;
+
+// -------- idk where to put these yet --------
+
 
 export abstract class RelayerMarshall {
   abstract toJSON(): object;

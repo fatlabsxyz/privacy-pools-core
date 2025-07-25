@@ -1,13 +1,14 @@
-import {
-  Address,
-  Chain,
-  ContractFunctionExecutionError,
-  ContractFunctionRevertedError,
-  decodeAbiParameters, DecodeAbiParametersErrorType,
-  encodeAbiParameters,
-  EncodeAbiParametersErrorType,
-  BaseError as ViemError
-} from "viem";
+// import {
+//   Address,
+//   Chain,
+//   ChainConfig,
+//   ContractFunctionExecutionError,
+//   ContractFunctionRevertedError,
+//   decodeAbiParameters, DecodeAbiParametersErrorType,
+//   encodeAbiParameters,
+//   EncodeAbiParametersErrorType,
+//   BaseError as ViemError
+// } from "viem";
 import {
   ValidationError,
   WithdrawalValidationError,
@@ -17,8 +18,9 @@ import {
   WithdrawPublicSignals,
 } from "./interfaces/relayer/request.js";
 import { FeeDataAbi } from "./types/abi.types.js";
-import { getFeeReceiverAddress, getSignerPrivateKey } from "./config/index.js";
+import { ChainConfig, ChainName, getFeeReceiverAddress, getSignerPrivateKey } from "./config/index.js";
 import { privateKeyToAccount } from "viem/accounts";
+import { Address } from "./providers/quote.provider.js";
 
 interface WithdrawalData {
   recipient: Address,
@@ -78,44 +80,39 @@ export function parseSignals(
   };
 }
 
+
+// TODO this seems to be used by Viem, might not need it
+//
+
 /**
  * Creates a Chain object for the given chain configuration
  * 
  * @param {object} chainConfig - The chain configuration
  * @returns {Chain} - The Chain object
  */
-export function createChainObject(chainConfig: {
-  chain_id: number;
-  chain_name: string;
-  rpc_url: string;
-  native_currency?: { name: string; symbol: string; decimals: number; };
-}): Chain {
-  return {
-    id: chainConfig.chain_id,
-    name: chainConfig.chain_name,
-    nativeCurrency: chainConfig.native_currency || {
-      name: "Ether",
-      symbol: "ETH",
-      decimals: 18
-    },
-    rpcUrls: {
-      default: { http: [chainConfig.rpc_url] },
-      public: { http: [chainConfig.rpc_url] },
-    },
-  };
-}
+// export function createChainObject(chainConfig: ChainConfig): Chain {
+//   return {
+//     name: chainConfig.chain_name,
+//     nativeCurrency: chainConfig.native_currency!, //TODO check this later, it should be set by zod
+//     rpcUrls: {
+//       default: { http: [chainConfig.rpc_url] },
+//       public: { http: [chainConfig.rpc_url] },
+//     },
+//   };
+// }
 
-export function isViemError(error: unknown): error is ViemError {
-  const viemErrorNames = [
-    ContractFunctionExecutionError.prototype.constructor.name,
-    ContractFunctionRevertedError.prototype.constructor.name,
-  ];
-  return viemErrorNames.includes(error?.constructor?.name || "");
-}
+// export function isViemError(error: unknown): error is ViemError {
+//   const viemErrorNames = [
+//     ContractFunctionExecutionError.prototype.constructor.name,
+//     ContractFunctionRevertedError.prototype.constructor.name,
+//   ];
+//   return viemErrorNames.includes(error?.constructor?.name || "");
+// }
 
-export function isFeeReceiverSameAsSigner(chainId: number) {
-  const feeReceiverAddress = getFeeReceiverAddress(chainId);
-  const signerAddress = privateKeyToAccount(getSignerPrivateKey(chainId) as `0x${string}`).address;
+export function isFeeReceiverSameAsSigner(chain: ChainName) {
+  const feeReceiverAddress = getFeeReceiverAddress(chain);
+  const signerAddress = privateKeyToAccount(getSignerPrivateKey(chain) as `0x${string}`).address;
+  // TODO check how I can convert a pkey to an account in starkjs
   return feeReceiverAddress.toLowerCase() === signerAddress.toLowerCase();
 }
 

@@ -1,9 +1,10 @@
-import { Address } from "viem";
 import { quoteProvider, starknetProvider } from "../providers/index.js";
 import { ChainName } from "../config/types.js";
+import { QuoteResponse } from "../providers/quote.provider.js";
+import { Address } from "../types.js";
 
 interface QuoteFeeBPSParams {
-  chainId: ChainName,
+  chainName: ChainName,
   assetAddress: Address,
   amountIn: bigint,
   baseFeeBPS: bigint,
@@ -50,9 +51,9 @@ export class QuoteService {
     const extraGasUnits = extraGas ? EXTRA_GAS_AMOUNT : 0n;
     const extraGasDetail = extraGas ? { extraGasTxCost: this.extraGasTxCost, extraGasFundAmount: this.extraGasFundAmount } : undefined;
 
-    let quote: { num: bigint, den: bigint; path: (string | number)[]; };
+    let quote: QuoteResponse;
     if (assetAddress.toLowerCase() === NativeAddress.toLowerCase()) {
-      quote = { num: 1n, den: 1n, path: [] };
+      quote = { num: 1n, den: 1n, path: "none" }; //TODO idk about this path value
     } else {
       quote = await quoteProvider.quoteNativeTokenInERC20(chainName, assetAddress, amountIn);
     }

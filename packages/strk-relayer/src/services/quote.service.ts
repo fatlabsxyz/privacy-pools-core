@@ -45,7 +45,8 @@ export class QuoteService {
 
   async quoteFeeBPSNative(quoteParams: QuoteFeeBPSParams): Promise<QuoteFee> {
     const { chainName, assetAddress, amountIn, baseFeeBPS, extraGas } = quoteParams;
-    const gasPrice = await starknetProvider.estimateFee(chainName); // TODO this needs tx
+    const tx = "idk";
+    const gasPrice = await starknetProvider.estimateFee(chainName, tx); // TODO this needs tx
 
     const EXTRA_GAS_AMOUNT = this.extraGasTxCost + this.extraGasFundAmount;
     const extraGasUnits = extraGas ? EXTRA_GAS_AMOUNT : 0n;
@@ -53,7 +54,7 @@ export class QuoteService {
 
     let quote: QuoteResponse;
     if (assetAddress.toLowerCase() === NativeAddress.toLowerCase()) {
-      quote = { num: 1n, den: 1n, path: "none" }; //TODO idk about this path value
+      quote = { num: 1n, den: 1n, path: ["none"] }; //TODO idk about this path value
     } else {
       quote = await quoteProvider.quoteNativeTokenInERC20(chainName, assetAddress, amountIn);
     }
@@ -66,7 +67,7 @@ export class QuoteService {
       relayTxCost: this.relayTxCost,
       ...extraGasDetail,
       path: quote.path
-    };
+    }
   }
 
 }

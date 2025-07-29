@@ -7,11 +7,19 @@ import {
   zConfig,
   zNativeCurrency
 } from "./schemas.js";
+import { constants } from "starknet";
 
-export enum ChainName {
-  Starknet = "starknet_chain",
-  Sepolia = "sepolia_chain",
-}
+// export enum ChainId {
+//   Starknet = constants.StarknetChainId.SN_MAIN,
+//   Sepolia = constants.StarknetChainId.SN_SEPOLIA,
+// }
+
+export const ChainId = {
+  Starknet: constants.StarknetChainId.SN_MAIN,
+  Sepolia: constants.StarknetChainId.SN_SEPOLIA,
+} as const;
+
+export type ChainId = typeof ChainId[keyof typeof ChainId];
 
 // Export types derived from Zod schemas
 export type AssetConfig = z.infer<typeof zAssetConfig>;

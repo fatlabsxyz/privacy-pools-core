@@ -1,7 +1,6 @@
 import { ChainName, ChainConfig} from "../config/types.js";
 import { getChainConfig } from "../config/index.js";
 import { Account, RpcProvider, CallData, CallDetails, Call, BigNumberish } from 'starknet';
-import { Address } from "viem";
 import { FeeCommitment } from "../interfaces/relayer/common.js";
 
 interface Provider {
@@ -15,6 +14,7 @@ type ChainProperties = {
   wallet: Account,  
 }
 
+/// this is probably going to be handled by the 
 enum PpFunction { 
   Test = "test_func",
 }

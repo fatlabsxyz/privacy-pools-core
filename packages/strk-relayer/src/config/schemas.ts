@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Address } from "../types.js";
 // import { getAddress } from "viem";
 // import path from "node:path";
 
@@ -26,7 +27,7 @@ export const zPkey = z
   .string()
   .regex(/^0x[0-9a-fA-F]+/)
   .length(66)
-  .transform((v) => v as `0x${string}`);
+  .transform((v) => v as Address);
 
 // Fee BPS validation schema
 export const zFeeBps = z

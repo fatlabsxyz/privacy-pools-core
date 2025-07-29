@@ -3,7 +3,7 @@
  */
 import { Account } from "starknet";
 import {
-    ChainName,
+    ChainId,
   getAssetConfig,
   getEntrypointAddress,
   getFeeReceiverAddress,
@@ -208,7 +208,7 @@ export class StarknetPrivacyPoolRelayer {
    * @throws {WithdrawalValidationError} - If validation fails.
    * @throws {ValidationError} - If public signals are malformed.
    */
-  protected async validateWithdrawal(wp: WithdrawalPayload, chainName: ChainName) {
+  protected async validateWithdrawal(wp: WithdrawalPayload, chainName: ChainId) {
     const entrypointAddress = getEntrypointAddress(chainName);
     const feeReceiverAddress = getFeeReceiverAddress(chainName);
     const signerAddress = privateKeyToAccount(getSignerPrivateKey(chainName) as `0x${string}`).address;
@@ -333,6 +333,6 @@ function commitmentExpired(feeCommitment: FeeCommitment): boolean {
   return feeCommitment.expiration < Number(new Date());
 }
 
-async function validFeeCommitment(chainName: ChainName, feeCommitment: FeeCommitment): Promise<boolean> {
+async function validFeeCommitment(chainName: ChainId, feeCommitment: FeeCommitment): Promise<boolean> {
   return starknetProvider.verifyRelayerCommitment(chainName, feeCommitment);
 }

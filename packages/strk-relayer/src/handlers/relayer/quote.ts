@@ -6,7 +6,7 @@ import { StarknetProvider } from "../../providers/index.js";
 import { quoteService } from "../../services/index.js";
 import { QuoteMarshall } from "../../types.js";
 import { encodeWithdrawalData, isFeeReceiverSameAsSigner, isNative } from "../../utils.js";
-import { privateKeyToAccount } from "viem/accounts";
+// import { privateKeyToAccount } from "viem/accounts";
 import { QuoteFee } from "../../services/quote.service.js";
 
 export async function relayQuoteHandler(
@@ -17,7 +17,7 @@ export async function relayQuoteHandler(
 
   const chainId = Number(req.body.chainId!);
   const amountIn = BigInt(req.body.amount!.toString());
-  const asset = getAddress(req.body.asset!.toString());
+  // const asset = getAddress(req.body.asset!.toString());
   let extraGas = Boolean(req.body.extraGas);
 
   const config = getAssetConfig(chainId, asset);

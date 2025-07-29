@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { ConfigError, RelayerError } from "../exceptions/base.exception.js";
 import { zConfig } from "./schemas.js";
-import { AssetConfig, ChainConfig, ChainName } from "./types.js";
+import { AssetConfig, ChainConfig, ChainId } from "./types.js";
 
 /**
  * Reads the configuration file from the path specified in the CONFIG_PATH environment variable
@@ -38,22 +38,22 @@ export const CORS_ALLOW_ALL = config.cors_allow_all;
 /**
  * Gets the chain configuration by chain name.
  * 
- * @param {ChainName} chain - The chain name
+ * @param {ChainId} chain - The starknet chain name
  * @returns {ChainConfig} The chain configuration
  * @throws {ConfigError} If the chain is not found
  */
-export function getChainConfig(chain: ChainName): ChainConfig {
+export function getChainConfig(chain: ChainId): ChainConfig {
   let chainConfig: ChainConfig;
   switch (chain) {
-    case ChainName.Starknet: { 
+    case ChainId.Starknet: { 
       chainConfig = CONFIG.starknet_chain; 
-      chainConfig.chain_name = "Starknet Mainnet"; 
+      chainConfig.chain_name = ChainId.Starknet.toString(); 
       chainConfig.entrypoint_address = "0xStarknetAddress"; // TODO set this here
       break;
     };
-    case ChainName.Sepolia: { 
+    case ChainId.Sepolia: { 
       chainConfig = CONFIG.sepolia_chain;
-      chainConfig.chain_name = "Starknet Sepolia"; 
+      chainConfig.chain_name = ChainId.Sepolia.toString(); 
       chainConfig.entrypoint_address = "0xSepoliaAddress"; // TODO set this here
       break;
     };
@@ -70,10 +70,10 @@ export function getChainConfig(chain: ChainName): ChainConfig {
  * Gets the effective fee receiver address for a chain.
  * Uses the chain-specific address if available, otherwise falls back to the default.
  * 
- * @param {ChainName} chain - Chain name, either Starknet or Sepolia
+ * @param {ChainId} chain - Chain name, either Starknet or Sepolia
  * @returns {string} The fee receiver address
  */
-export function getFeeReceiverAddress(chain: ChainName): string {
+export function getFeeReceiverAddress(chain: ChainId): string {
   const chainConfig = getChainConfig(chain);
   return chainConfig.fee_receiver_address || CONFIG.defaults.fee_receiver_address;
 }
@@ -82,10 +82,10 @@ export function getFeeReceiverAddress(chain: ChainName): string {
  * Gets the effective signer private key for a chain.
  * Uses the chain-specific key if available, otherwise falls back to the default.
  * 
- * @param {ChainName} chain - Chain name, either Starknet or Sepolia
+ * @param {ChainId} chain - Chain name, either Starknet or Sepolia
  * @returns {string} The signer private key
  */
-export function getSignerPrivateKey(chain: ChainName): string {
+export function getSignerPrivateKey(chain: ChainId): string {
   const chainConfig = getChainConfig(chain);
   return chainConfig.signer_private_key || CONFIG.defaults.signer_private_key;
 }
@@ -94,10 +94,10 @@ export function getSignerPrivateKey(chain: ChainName): string {
  * Gets the effective entrypoint address for a chain.
  * Uses the chain-specific address if available, otherwise falls back to the default.
  * 
- * @param {ChainName} chain - Chain name, either Starknet or Sepolia
+ * @param {ChainId} chain - Chain name, either Starknet or Sepolia
  * @returns {string} The entrypoint address
  */
-export function getEntrypointAddress(chain: ChainName): string {
+export function getEntrypointAddress(chain: ChainId): string {
   const chainConfig = getChainConfig(chain);
   return chainConfig.entrypoint_address || CONFIG.defaults.entrypoint_address;
 }
@@ -114,11 +114,11 @@ export function getQuoteExpirationTime(): number {
 /**
  * Gets the asset configuration for a specific chain and asset address.
  * 
- * @param {ChainName} chain - Chain name, either Starknet or Sepolia
+ * @param {ChainId} chain - Chain name, either Starknet or Sepolia
  * @param {string} assetAddress - The asset address
  * @returns {AssetConfig} The asset configuration, or undefined if not found
  */
-export function getAssetConfig(chain: ChainName, assetAddress: string): AssetConfig {
+export function getAssetConfig(chain: ChainId, assetAddress: string): AssetConfig {
   const chainConfig = getChainConfig(chain);
 
   if (!chainConfig.supported_assets) {

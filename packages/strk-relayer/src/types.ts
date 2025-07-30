@@ -14,7 +14,10 @@ export type Hex = `0x${string}`;
 export type Hash = bigint & {
     readonly __brand: unique symbol;
 };
-export type Withdrawal = String;
+export type Withdrawal = {
+  processooor: Address; 
+  data: Hex;
+};
 export type SdkWithdrawal = {
   processooor: Address; 
   data: Hex;

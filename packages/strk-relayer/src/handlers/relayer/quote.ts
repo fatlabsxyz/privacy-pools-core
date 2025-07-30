@@ -1,13 +1,12 @@
 import { NextFunction, Request, Response } from "express";
-// import { getAddress } from "viem";
-import { getAssetConfig, getFeeReceiverAddress, getQuoteExpirationTime, getSignerPrivateKey } from "../../config/index.js";
+import { ChainId, getAssetConfig, getFeeReceiverAddress, getQuoteExpirationTime, getSignerPrivateKey } from "../../config/index.js";
 import { QuoterError } from "../../exceptions/base.exception.js";
-import { StarknetProvider } from "../../providers/index.js";
+import { starknetProvider } from "../../providers/index.js";
 import { quoteService } from "../../services/index.js";
-import { QuoteMarshall } from "../../types.js";
-import { encodeWithdrawalData, isFeeReceiverSameAsSigner, isNative } from "../../utils.js";
-// import { privateKeyToAccount } from "viem/accounts";
+import { Address, Hex, QuoteMarshall } from "../../types.js";
+import { encodeWithdrawalData, getAddress, isFeeReceiverSameAsSigner, isNative, privateKeyToAccount } from "../../utils.js";
 import { QuoteFee } from "../../services/quote.service.js";
+import { FeeCommitment } from "../../interfaces/relayer/common.js";
 
 export async function relayQuoteHandler(
   req: Request,
@@ -15,9 +14,9 @@ export async function relayQuoteHandler(
   next: NextFunction,
 ) {
 
-  const chainId = req.body.chainId!;
+  const chainId = req.body.chainId! as ChainId;
   const amountIn = BigInt(req.body.amount!.toString());
-  // const asset = getAddress(req.body.asset!.toString());
+  const asset = getAddress(req.body.asset!.toString());
   let extraGas = Boolean(req.body.extraGas);
 
   const config = getAssetConfig(chainId, asset);
@@ -53,26 +52,27 @@ export async function relayQuoteHandler(
   });
 
   if (recipient) {
-    let feeReceiverAddress: `0x${string}`;
+    let feeReceiverAddress: Address;
     const finalFeeReceiverAddress = getAddress(getFeeReceiverAddress(chainId));
     if (extraGas) {
-      const signer = privateKeyToAccount(getSignerPrivateKey(chainId) as `0x${string}`);
+      const pkey = getSignerPrivateKey(chainId) as Address;
+      const signer = privateKeyToAccount(pkey);
       if (isFeeReceiverSameAsSigner(chainId)) {
         feeReceiverAddress = finalFeeReceiverAddress;
       } else {
-        feeReceiverAddress = signer.address;
+        feeReceiverAddress = signer.address as Address;
       }
     } else {
       feeReceiverAddress = finalFeeReceiverAddress;
     }
-    const withdrawalData = encodeWithdrawalData({
-      feeRecipient: getAddress(feeReceiverAddress),
+    const withdrawalData: Hex = encodeWithdrawalData({
+      feeRecipient: getAddress(feeReceiverAddress) as Address,
       recipient,
       relayFeeBPS: feeBPS
     });
     const expiration = Number(new Date()) + getQuoteExpirationTime();
-    const relayerCommitment = { withdrawalData, expiration, asset, amount: amountIn, extraGas };
-    const signedRelayerCommitment = await web3Provider.signRelayerCommitment(chainId, relayerCommitment);
+    const relayerCommitment = { withdrawalData, expiration, asset, amount: amountIn, extraGas } as FeeCommitment;
+    const signedRelayerCommitment = starknetProvider.signRelayerCommitment(chainId, relayerCommitment) as Hex;
     quoteResponse.addFeeCommitment({ expiration, asset, withdrawalData, signedRelayerCommitment, extraGas, amount: amountIn });
   }
 

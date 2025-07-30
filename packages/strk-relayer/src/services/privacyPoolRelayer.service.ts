@@ -19,20 +19,20 @@ import {
   RelayerResponse,
   WithdrawalPayload,
 } from "../interfaces/relayer/request.js";
-import { /**SdkProvider,*/ starknetProvider } from "../providers/index.js";
+import { starknetProvider, StarknetSdkProvider, StarknetProvider } from "../providers/index.js";
 // import { SdkProviderInterface } from "../types/sdk.types.js"; //TODO
-import { decodeWithdrawalData, isFeeReceiverSameAsSigner, isNative, parseSignals } from "../utils.js";
+import { decodeWithdrawalData, getAddress, isFeeReceiverSameAsSigner, isNative, parseSignals } from "../utils.js";
 import { quoteService } from "./index.js";
-import { StarknetProvider } from "../providers/starknet.provider.js";
 import { FeeCommitment } from "../interfaces/relayer/common.js";
 import { Address } from "../types.js";
+import { SdkProviderInterface } from "../types/sdk.types.js";
 
 /**
  * Class representing the Privacy Pool Relayer, responsible for processing withdrawal requests.
  */
 export class StarknetPrivacyPoolRelayer {
   /** SDK provider for handling contract interactions. */
-  // protected sdkProvider: SdkProviderInterface; //TODO
+  protected sdkProvider: SdkProviderInterface; //TODO
   /** Starknet provider for handling blockchain interactions. */
   protected starknetProvider: StarknetProvider;
 
@@ -40,7 +40,7 @@ export class StarknetPrivacyPoolRelayer {
    * Initializes a new instance of the Privacy Pool Relayer.
    */
   constructor() {
-    // this.sdkProvider = new SdkProvider(); //TODO
+    this.sdkProvider = new StarknetSdkProvider(); //TODO
     this.starknetProvider = starknetProvider;
   }
 

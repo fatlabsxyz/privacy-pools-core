@@ -2,22 +2,9 @@
  * Provides an interface to interact with the Privacy Pool SDK.
  */
 
-// import {
-//   calculateContext,
-//   Circuits,
-//   ContractInteractionsService,
-//   PrivacyPoolSDK,
-//   Withdrawal,
-//   WithdrawalProof,
-//   SDKError,
-//   type Hash,
-// } from "@0xbow/privacy-pools-core-sdk";
 import { Address, ContractInteractionsService, Hash, Hex, StarknetPrivacyPoolSDK, Withdrawal, WithdrawalProof } from "../types.js";
 import { Account } from "starknet";
-import {
-    ChainId,
-  CONFIG
-} from "../config/index.js";
+import { ChainId, CONFIG } from "../config/index.js";
 import { WithdrawalPayload } from "../interfaces/relayer/request.js";
 import { RelayerError, SdkError, ConfigError } from "../exceptions/base.exception.js";
 import { SdkProviderInterface } from "../types/sdk.types.js";
@@ -44,30 +31,30 @@ export class StarknetSdkProvider implements SdkProviderInterface {
     // Initialize contract instances for all supported chains
     
     //TODO: unmock later
-    CONFIG.chains.forEach(chainConfig => {
-      try {
-        // Create chain object
-        const chain = createChainObject(chainConfig);
-
-        
-        // Get entrypoint address and signer private key
-        const entrypointAddress = chainConfig.entrypoint_address || CONFIG.defaults.entrypoint_address;
-        const signerPrivateKey = chainConfig.signer_private_key || CONFIG.defaults.signer_private_key;
-        
-        // Create contract instance
-        const contracts = this.sdk.createContractInstance();
-        // const contracts = this.sdk.createContractInstance(
-        //   chainConfig.rpc_url,
-        //   chain,
-        //   entrypointAddress,
-        //   signerPrivateKey,
-        // );
-        
-        this.contractsByChain.set(chainId, contracts);
-      } catch (error) {
-        console.error(`Error initializing chain ${chainConfig.chain_id}: ${error}`);
-      }
-    });
+    // CONFIG.chains.forEach(chainConfig => {
+    //   try {
+    //     // Create chain object
+    //     const chain = createChainObject(chainConfig);
+    //
+    //
+    //     // Get entrypoint address and signer private key
+    //     const entrypointAddress = chainConfig.entrypoint_address || CONFIG.defaults.entrypoint_address;
+    //     const signerPrivateKey = chainConfig.signer_private_key || CONFIG.defaults.signer_private_key;
+    //
+    //     // Create contract instance
+    //     const contracts = this.sdk.createContractInstance();
+    //     // const contracts = this.sdk.createContractInstance(
+    //     //   chainConfig.rpc_url,
+    //     //   chain,
+    //     //   entrypointAddress,
+    //     //   signerPrivateKey,
+    //     // );
+    //
+    //     this.contractsByChain.set(chainId, contracts);
+    //   } catch (error) {
+    //     console.error(`Error initializing chain ${chainConfig.chain_id}: ${error}`);
+    //   }
+    // });
     
     if (this.contractsByChain.size === 0) {
       throw new Error("No chains were successfully initialized");

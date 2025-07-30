@@ -1,4 +1,4 @@
-export { StarknetPrivacyPoolRelayer } from "./privacyPoolRelayer.service.js";
+import { StarknetPrivacyPoolRelayer } from "./privacyPoolRelayer.service.js";
 import { QuoteService } from "./quote.service.js";
 
 export const privacyPoolRelayer = new StarknetPrivacyPoolRelayer();

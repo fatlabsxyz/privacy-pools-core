@@ -2,7 +2,7 @@ import { ChainId, ChainConfig} from "../config/types.js";
 import { getChainConfig } from "../config/index.js";
 import { Account, RpcProvider, CallData, CallDetails, Call, BigNumberish } from 'starknet';
 import { FeeCommitment } from "../interfaces/relayer/common.js";
-import { Address } from "../types.js";
+import { Address, Hex } from "../types.js";
 
 interface Provider {
   client(chainId: ChainId): RpcProvider;
@@ -64,9 +64,9 @@ export class StarknetProvider implements Provider {
     return fee.suggestedMaxFee;
   }
 
-  signRelayerCommitment(chainId: ChainId, feeCommitment: FeeCommitment): boolean {
+  signRelayerCommitment(chainId: ChainId, feeCommitment: FeeCommitment): Hex {
   //TODO: implement this
-    return true;
+    return ("0x1" as Hex);
   }
 
   verifyRelayerCommitment(chainId: ChainId, feeCommitment: FeeCommitment): boolean {

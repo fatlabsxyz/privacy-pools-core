@@ -10,8 +10,8 @@ import { FeeDataAbi } from "./types/abi.types.js";
 import { ChainConfig, ChainId, getFeeReceiverAddress, getSignerPrivateKey } from "./config/index.js";
 import { Address, Hex } from "./types.js";
 import { Account, ByteArray } from "starknet";
-import { starknetProvider } from "./providers/index.js";
-import { keysToAccount } from "./providers/starknet.provider.js";
+import { starknetProvider, keysToAccount } from "./providers/index.js";
+// import { keysToAccount } from "./providers/starknet.provider.js";
 
 interface WithdrawalData {
   recipient: Address,

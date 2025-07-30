@@ -9,15 +9,10 @@ import {
 } from "./schemas.js";
 import { constants } from "starknet";
 
-// export enum ChainId {
-//   Starknet = constants.StarknetChainId.SN_MAIN,
-//   Sepolia = constants.StarknetChainId.SN_SEPOLIA,
-// }
-
 export const ChainId = {
   Starknet: constants.StarknetChainId.SN_MAIN,
   Sepolia: constants.StarknetChainId.SN_SEPOLIA,
-} as const;
+} as const
 
 export type ChainId = typeof ChainId[keyof typeof ChainId];
 

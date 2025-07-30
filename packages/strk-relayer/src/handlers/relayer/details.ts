@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { Address, DetailsMarshall } from "../../types.js";
-import { ChainId, CONFIG, getAssetConfig, getChainConfig, getQuoteExpirationTime } from "../../config/index.js";
+import { ChainId, CONFIG, getAssetConfig, getChainConfig, getFeeReceiverAddress, getQuoteExpirationTime } from "../../config/index.js";
 import { ValidationError } from "../../exceptions/base.exception.js";
 import { getAddress, parseChainId } from "../../utils.js";
 
@@ -34,7 +34,7 @@ export function relayerDetailsHandler(
   const chainConfig = getChainConfig(chainId);
 
   // Get fee receiver address for this chain
-  const feeReceiverAddress = chainConfig.fee_receiver_address || CONFIG.defaults.fee_receiver_address;
+  const feeReceiverAddress = getFeeReceiverAddress(chainId);
 
   // Get asset configuration  
   const assetConfig = getAssetConfig(chainId, normalizedAssetAddress);

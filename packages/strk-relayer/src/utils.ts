@@ -20,9 +20,9 @@ interface WithdrawalData {
 }
 
 export function parseChainId(raw: string): ChainId {
-  if (raw === "mainnet" || raw === "starknet" || raw === (ChainId.Starknet as string)) {
+  if (raw === "sn_main" || raw === (ChainId.Starknet as string)) {
     return ChainId.Starknet;
-  } else if (raw === "testnet" || raw === "sepolia" || raw === (ChainId.Sepolia as string)) {
+  } else if (raw === "sn_sepolia" || raw === (ChainId.Sepolia as string)) {
     return ChainId.Sepolia;
   } else {
     throw("Could not parse chainId from queryparam string")

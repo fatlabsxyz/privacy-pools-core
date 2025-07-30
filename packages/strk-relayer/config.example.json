@@ -2,7 +2,7 @@
     "defaults": {
         "quote_expiration_time": 60
     },
-    "starknet_chain": {
+    "sn_main": {
         "rpc_url": "https://sepolia.infura.io/v3/YOUR_INFURA_KEY",
         "max_gas_price": "2392000000",
         "fee_receiver_address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
@@ -17,7 +17,7 @@
             }
         ]
     },
-    "sepolia_chain": {
+    "sn_sepolia": {
         "rpc_url": "https://sepolia.infura.io/v3/YOUR_INFURA_KEY",
         "max_gas_price": "2392000000",
         "fee_receiver_address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",

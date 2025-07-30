@@ -56,9 +56,9 @@ export class StarknetSdkProvider implements SdkProviderInterface {
     //   }
     // });
     
-    if (this.contractsByChain.size === 0) {
-      throw new Error("No chains were successfully initialized");
-    }
+    // if (this.contractsByChain.size === 0) {
+    //   throw new Error("No chains were successfully initialized");
+    // }
   }
 
   /**

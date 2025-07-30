@@ -3,7 +3,7 @@ import path from "node:path";
 import { ConfigError, RelayerError } from "../exceptions/base.exception.js";
 import { zConfig } from "./schemas.js";
 import { AssetConfig, ChainConfig, ChainId } from "./types.js";
-import { Address } from "@0xbow/privacy-pools-core-sdk";
+import { Address } from "../types.js";
 
 /**
  * Reads the configuration file from the path specified in the CONFIG_PATH environment variable
@@ -76,7 +76,7 @@ export function getChainConfig(chain: ChainId): ChainConfig {
  */
 export function getFeeReceiverAddress(chain: ChainId): Address {
   const chainConfig = getChainConfig(chain);
-  return chainConfig.fee_receiver_address as Address || CONFIG.defaults.fee_receiver_address as Address;
+  return chainConfig.fee_receiver_address as Address;
 }
 
 /**
@@ -88,7 +88,7 @@ export function getFeeReceiverAddress(chain: ChainId): Address {
  */
 export function getSignerPrivateKey(chain: ChainId): Address {
   const chainConfig = getChainConfig(chain);
-  return chainConfig.signer_private_key as Address || CONFIG.defaults.signer_private_key as Address;
+  return chainConfig.signer_private_key as Address;
 }
 
 /**
@@ -100,7 +100,7 @@ export function getSignerPrivateKey(chain: ChainId): Address {
  */
 export function getEntrypointAddress(chain: ChainId): Address {
   const chainConfig = getChainConfig(chain);
-  return chainConfig.entrypoint_address as Address || CONFIG.defaults.entrypoint_address as Address;
+  return chainConfig.entrypoint_address as Address;
 }
 
 /**

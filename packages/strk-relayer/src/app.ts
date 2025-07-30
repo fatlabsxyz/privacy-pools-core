@@ -1,11 +1,11 @@
 import bodyParser from "body-parser";
 import express, { NextFunction, Request, Response } from "express";
 import cors from "cors";
-// import {
-//   errorHandlerMiddleware,
-//   marshalResponseMiddleware,
-//   notFoundMiddleware,
-// } from "./middlewares/index.js";
+import {
+  errorHandlerMiddleware,
+  marshalResponseMiddleware,
+  notFoundMiddleware,
+} from "./middlewares/index.js";
 import { relayerRouter } from "./routes/index.js";
 import { CORS_ALLOW_ALL, ALLOWED_DOMAINS } from "./config/index.js";
 

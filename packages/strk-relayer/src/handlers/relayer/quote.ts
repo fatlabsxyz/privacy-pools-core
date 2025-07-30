@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from "express";
-import { getAddress } from "viem";
+// import { getAddress } from "viem";
 import { getAssetConfig, getFeeReceiverAddress, getQuoteExpirationTime, getSignerPrivateKey } from "../../config/index.js";
 import { QuoterError } from "../../exceptions/base.exception.js";
 import { StarknetProvider } from "../../providers/index.js";
@@ -15,7 +15,7 @@ export async function relayQuoteHandler(
   next: NextFunction,
 ) {
 
-  const chainId = Number(req.body.chainId!);
+  const chainId = req.body.chainId!;
   const amountIn = BigInt(req.body.amount!.toString());
   // const asset = getAddress(req.body.asset!.toString());
   let extraGas = Boolean(req.body.extraGas);

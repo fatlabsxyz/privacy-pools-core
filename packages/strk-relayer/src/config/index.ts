@@ -3,6 +3,7 @@ import path from "node:path";
 import { ConfigError, RelayerError } from "../exceptions/base.exception.js";
 import { zConfig } from "./schemas.js";
 import { AssetConfig, ChainConfig, ChainId } from "./types.js";
+import { Address } from "@0xbow/privacy-pools-core-sdk";
 
 /**
  * Reads the configuration file from the path specified in the CONFIG_PATH environment variable
@@ -48,13 +49,13 @@ export function getChainConfig(chain: ChainId): ChainConfig {
     case ChainId.Starknet: { 
       chainConfig = CONFIG.starknet_chain; 
       chainConfig.chain_name = ChainId.Starknet.toString(); 
-      chainConfig.entrypoint_address = "0xStarknetAddress"; // TODO set this here
+      chainConfig.entrypoint_address = "0xStarknetAddress"; // TODO set SPP mainnet contract address here
       break;
     };
     case ChainId.Sepolia: { 
       chainConfig = CONFIG.sepolia_chain;
       chainConfig.chain_name = ChainId.Sepolia.toString(); 
-      chainConfig.entrypoint_address = "0xSepoliaAddress"; // TODO set this here
+      chainConfig.entrypoint_address = "0xSepoliaAddress"; // TODO set SPP sepolia contract address here
       break;
     };
     default: throw ConfigError.default(`Chain not supported.`);
@@ -73,9 +74,9 @@ export function getChainConfig(chain: ChainId): ChainConfig {
  * @param {ChainId} chain - Chain name, either Starknet or Sepolia
  * @returns {string} The fee receiver address
  */
-export function getFeeReceiverAddress(chain: ChainId): string {
+export function getFeeReceiverAddress(chain: ChainId): Address {
   const chainConfig = getChainConfig(chain);
-  return chainConfig.fee_receiver_address || CONFIG.defaults.fee_receiver_address;
+  return chainConfig.fee_receiver_address as Address || CONFIG.defaults.fee_receiver_address as Address;
 }
 
 /**
@@ -85,9 +86,9 @@ export function getFeeReceiverAddress(chain: ChainId): string {
  * @param {ChainId} chain - Chain name, either Starknet or Sepolia
  * @returns {string} The signer private key
  */
-export function getSignerPrivateKey(chain: ChainId): string {
+export function getSignerPrivateKey(chain: ChainId): Address {
   const chainConfig = getChainConfig(chain);
-  return chainConfig.signer_private_key || CONFIG.defaults.signer_private_key;
+  return chainConfig.signer_private_key as Address || CONFIG.defaults.signer_private_key as Address;
 }
 
 /**
@@ -97,9 +98,9 @@ export function getSignerPrivateKey(chain: ChainId): string {
  * @param {ChainId} chain - Chain name, either Starknet or Sepolia
  * @returns {string} The entrypoint address
  */
-export function getEntrypointAddress(chain: ChainId): string {
+export function getEntrypointAddress(chain: ChainId): Address {
   const chainConfig = getChainConfig(chain);
-  return chainConfig.entrypoint_address || CONFIG.defaults.entrypoint_address;
+  return chainConfig.entrypoint_address as Address || CONFIG.defaults.entrypoint_address as Address;
 }
 
 /**
@@ -118,7 +119,7 @@ export function getQuoteExpirationTime(): number {
  * @param {string} assetAddress - The asset address
  * @returns {AssetConfig} The asset configuration, or undefined if not found
  */
-export function getAssetConfig(chain: ChainId, assetAddress: string): AssetConfig {
+export function getAssetConfig(chain: ChainId, assetAddress: Address): AssetConfig {
   const chainConfig = getChainConfig(chain);
 
   if (!chainConfig.supported_assets) {

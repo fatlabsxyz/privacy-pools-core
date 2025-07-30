@@ -1,14 +1,3 @@
-// import {
-//   Address,
-//   Chain,
-//   ChainConfig,
-//   ContractFunctionExecutionError,
-//   ContractFunctionRevertedError,
-//   decodeAbiParameters, DecodeAbiParametersErrorType,
-//   encodeAbiParameters,
-//   EncodeAbiParametersErrorType,
-//   BaseError as ViemError
-// } from "viem";
 import {
   ValidationError,
   WithdrawalValidationError,
@@ -19,8 +8,10 @@ import {
 } from "./interfaces/relayer/request.js";
 import { FeeDataAbi } from "./types/abi.types.js";
 import { ChainConfig, ChainId, getFeeReceiverAddress, getSignerPrivateKey } from "./config/index.js";
-import { privateKeyToAccount } from "viem/accounts";
-import { Address } from "./types.js";
+import { Address, Hex } from "./types.js";
+import { Account, ByteArray } from "starknet";
+import { starknetProvider } from "./providers/index.js";
+import { keysToAccount } from "./providers/starknet.provider.js";
 
 interface WithdrawalData {
   recipient: Address,
@@ -28,12 +19,24 @@ interface WithdrawalData {
   relayFeeBPS: bigint;
 }
 
-export function decodeWithdrawalData(data: `0x${string}`): WithdrawalData {
+export function parseChainId(raw: string): ChainId {
+  if (raw === "mainnet" || raw === "starknet" || raw === (ChainId.Starknet as string)) {
+    return ChainId.Starknet;
+  } else if (raw === "testnet" || raw === "sepolia" || raw === (ChainId.Sepolia as string)) {
+    return ChainId.Sepolia;
+  } else {
+    throw("Could not parse chainId from queryparam string")
+  }
+}
+
+export function decodeWithdrawalData(data: Hex): WithdrawalData {
   try {
-    const [{ recipient, feeRecipient, relayFeeBPS }] = decodeAbiParameters(
+    const result = decodeAbiParameters(
       FeeDataAbi,
       data,
-    );
+    ); //TODO fix this later
+    const {recipient, feeRecipient, relayFeeBPS} = result[0]!;
+
     return { recipient, feeRecipient, relayFeeBPS };
   } catch (e) {
     const error = { name: "name", message:"message" }; //TODO: fix this later (as DecodeAbiParametersErrorType)
@@ -44,7 +47,7 @@ export function decodeWithdrawalData(data: `0x${string}`): WithdrawalData {
   }
 }
 
-export function encodeWithdrawalData(withdrawalData: WithdrawalData): Address {
+export function encodeWithdrawalData(withdrawalData: WithdrawalData): Hex{
   // try {
   //   // TODO: should encode the abi params into a string instead of array of withdrawalData 
   //   return encodeAbiParameters(FeeDataAbi, [withdrawalData]);
@@ -56,7 +59,7 @@ export function encodeWithdrawalData(withdrawalData: WithdrawalData): Address {
   //     message: error.message
   //   });
   // }
-
+  return "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" as Hex; // TODO fix this
 }
 
 export function parseSignals(
@@ -121,5 +124,31 @@ export function isFeeReceiverSameAsSigner(chain: ChainId) {
 }
 
 export function isNative(asset: Address) {
+  // TODO this probably changes in starknet?
   return asset.toLowerCase() === "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+}
+
+export function getAddress(val: string): Address { //TODO mayhaps should be hex?
+  // TODO test this further
+  try {
+    return val as Address;
+  } catch(e) {
+    throw(e)
+  }
+
+}
+// in viem, this takes in a string and converts it into a js object.
+export function decodeAbiParameters(params: any, data: ByteArray | Hex ): WithdrawalData[] {
+  // TODO: unmock this
+  return [{ 
+    recipient: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" as Address,
+    feeRecipient: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" as Address,
+    relayFeeBPS: 10n
+  } as WithdrawalData];
+}
+
+export function privateKeyToAccount(privateKey: Address): Account {
+  //TODO: unmock this
+  const acc = keysToAccount(privateKey, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" as Address, ChainId.Starknet);
+  return acc;
 }

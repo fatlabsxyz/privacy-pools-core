@@ -1,4 +1,4 @@
-import { Address } from "../../types.js";
+import { Address, Hex } from "../../types.js";
 
 export interface QuotetBody {
   /** Chain ID to process the request on */
@@ -20,9 +20,10 @@ export interface QuoteResponse {
   detail: { [key: string]: { gas: bigint, eth: bigint; } | undefined; };
   feeCommitment?: {
     expiration: number,
-    withdrawalData: Address,
+    withdrawalData: Hex, //TODO not sure if this should be Hex or Address
     amount: string,
     extraGas: boolean,
-    signedRelayerCommitment: Address,
+    signedRelayerCommitment: Hex, //TODO not sure if this should be Hex or Address
+
   };
 }

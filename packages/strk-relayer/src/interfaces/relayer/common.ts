@@ -1,13 +1,14 @@
+import { Hex } from "../../types.js";
 
 /**
  * Represents the relayer commitment for a pre-built withdrawal.
  */
 export interface FeeCommitment {
-  withdrawalData: `0x${string}`,
-  asset: `0x${string}`,
+  withdrawalData: Hex,
+  asset: Hex,
   expiration: number,
   amount: bigint,
   extraGas: boolean,
-  signedRelayerCommitment: `0x${string}`,
+  signedRelayerCommitment: Hex, //TODO: not sure if this should be Hex or Address
 }
 

@@ -1,4 +1,4 @@
-import { ChainName } from "../config/types.js";
+import { ChainId } from "../config/types.js";
 import { Address } from "../types.js";
 
 export type QuoteResponse = {
@@ -10,6 +10,6 @@ export type QuoteResponse = {
 // TODO define address type more precisely, since starknet just uses string
 /// The most basic impl of quote provider calculates the fee amount that your relay would charge for the transaction.
 export interface IQuoteProvider {
-  quoteNativeTokenInERC20(chainName: ChainName, addressIn: Address, amountIn: bigint): Promise<QuoteResponse> 
+  quoteNativeTokenInERC20(chainId: ChainId, addressIn: Address, amountIn: bigint): Promise<QuoteResponse> 
 }
 

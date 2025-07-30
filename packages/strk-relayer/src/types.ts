@@ -1,19 +1,34 @@
 import { RelayerResponse } from "./interfaces/relayer/request.js";
 import { QuoteResponse } from "./interfaces/relayer/quote.js";
 import { FeeCommitment } from "./interfaces/relayer/common.js";
+import { ChainId } from "./config/types.js";
+
 
 
 // -------- idk where to put these yet --------
 /// Ethereum address
 export type Address = `0x${string}` & { length: 66 };
+export type Hex = `0x${string}`;
 
 /// Hashed value
 export type Hash = bigint & {
     readonly __brand: unique symbol;
 };
 export type Withdrawal = String;
-export type SdkWithdrawal = String;
-export type WithdrawalProof = String;
+export type SdkWithdrawal = {
+  processooor: Address; 
+  data: Hex;
+};
+export type WithdrawalProof = {
+  proof: {
+    protocol: string;
+    curve: string;
+    pi_a: [string, string, string];
+    pi_b: [[string, string], [string, string], [string, string]];
+    pi_c: [string, string, string];
+  },
+  publicSignals: string[],
+};
 export type WithdrawalPayload = {
   readonly proof: WithdrawalProof;
   readonly withdrawal: SdkWithdrawal;
@@ -25,7 +40,12 @@ export class ContractInteractionsService {
     return 1n as Hash;
   }
 }
-export type StarknetPrivacyPoolSDK = String;
+export class StarknetPrivacyPoolSDK {
+  constructor() {}
+  createContractInstance(): String {
+    return "ContractInstance";
+  }
+}
 
 // -------- idk where to put these yet --------
 
@@ -38,7 +58,7 @@ export class DetailsMarshall extends RelayerMarshall {
   constructor(private details: {
     feeBPS: bigint,
     feeReceiverAddress: Address,
-    chainId?: number,
+    chainId?: ChainId,
     quoteExpirationTime: number,
     assetAddress?: Address,
     minWithdrawAmount?: bigint,
@@ -84,8 +104,11 @@ export class QuoteMarshall extends RelayerMarshall {
 
   addFeeCommitment(feeCommitment: FeeCommitment) {
     this.response.feeCommitment = {
-      ...feeCommitment,
-      amount: feeCommitment.amount.toString()
+      expiration: feeCommitment.expiration,
+      withdrawalData: feeCommitment.withdrawalData,
+      amount: feeCommitment.amount.toString(),
+      extraGas: feeCommitment.extraGas,
+      signedRelayerCommitment: feeCommitment.signedRelayerCommitment,
     };
   }
 

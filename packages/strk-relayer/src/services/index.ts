@@ -1,6 +1,5 @@
-export { PrivacyPoolRelayer } from "./privacyPoolRelayer.service.js";
-import { PrivacyPoolRelayer } from "./privacyPoolRelayer.service.js";
+export { StarknetPrivacyPoolRelayer } from "./privacyPoolRelayer.service.js";
 import { QuoteService } from "./quote.service.js";
 
-export const privacyPoolRelayer = new PrivacyPoolRelayer();
+export const privacyPoolRelayer = new StarknetPrivacyPoolRelayer();
 export const quoteService = new QuoteService();

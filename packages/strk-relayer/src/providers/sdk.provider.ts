@@ -12,10 +12,10 @@
 //   SDKError,
 //   type Hash,
 // } from "@0xbow/privacy-pools-core-sdk";
-import { Address, ContractInteractionsService, Hash, StarknetPrivacyPoolSDK, Withdrawal, WithdrawalProof } from "../types.js";
+import { Address, ContractInteractionsService, Hash, Hex, StarknetPrivacyPoolSDK, Withdrawal, WithdrawalProof } from "../types.js";
 import { Account } from "starknet";
 import {
-    ChainName,
+    ChainId,
   CONFIG
 } from "../config/index.js";
 import { WithdrawalPayload } from "../interfaces/relayer/request.js";
@@ -30,35 +30,40 @@ export class StarknetSdkProvider implements SdkProviderInterface {
   /** Instance of the PrivacyPoolSDK. */
   private sdk: StarknetPrivacyPoolSDK;
   
-  /** Map of chainName to contract interactions service */
-  private contractsByChain: Map<ChainName, ContractInteractionsService>;
+  /** Map of chainId to contract interactions service */
+  private contractsByChain: Map<ChainId, ContractInteractionsService>;
 
   /**
    * Initializes a new instance of the SDK provider.
    */
   constructor() {
-    this.sdk = new StarknetPrivacyPoolSDK(new Circuits({ browser: false }));
+    // this.sdk = new StarknetPrivacyPoolSDK(new Circuits({ browser: false }));
+    this.sdk = new StarknetPrivacyPoolSDK();
     this.contractsByChain = new Map();
     
     // Initialize contract instances for all supported chains
+    
+    //TODO: unmock later
     CONFIG.chains.forEach(chainConfig => {
       try {
         // Create chain object
         const chain = createChainObject(chainConfig);
+
         
         // Get entrypoint address and signer private key
         const entrypointAddress = chainConfig.entrypoint_address || CONFIG.defaults.entrypoint_address;
         const signerPrivateKey = chainConfig.signer_private_key || CONFIG.defaults.signer_private_key;
         
         // Create contract instance
-        const contracts = this.sdk.createContractInstance(
-          chainConfig.rpc_url,
-          chain,
-          entrypointAddress,
-          signerPrivateKey,
-        );
+        const contracts = this.sdk.createContractInstance();
+        // const contracts = this.sdk.createContractInstance(
+        //   chainConfig.rpc_url,
+        //   chain,
+        //   entrypointAddress,
+        //   signerPrivateKey,
+        // );
         
-        this.contractsByChain.set(chainConfig.chain_id, contracts);
+        this.contractsByChain.set(chainId, contracts);
       } catch (error) {
         console.error(`Error initializing chain ${chainConfig.chain_id}: ${error}`);
       }
@@ -76,10 +81,10 @@ export class StarknetSdkProvider implements SdkProviderInterface {
    * @returns {ContractInteractionsService} - The contract interactions service for the specified chain.
    * @throws {RelayerError} - If the chain is not supported.
    */
-  private getContractsForChain(chainName: ChainName): ContractInteractionsService {
-    const contracts = this.contractsByChain.get(chainName);
+  private getContractsForChain(chainId: ChainId): ContractInteractionsService {
+    const contracts = this.contractsByChain.get(chainId);
     if (!contracts) {
-      throw ConfigError.default(`Chain with ID ${chainName} not supported.`);
+      throw ConfigError.default(`Chain with ID ${chainId} not supported.`);
     }
     return contracts;
   }
@@ -91,7 +96,8 @@ export class StarknetSdkProvider implements SdkProviderInterface {
    * @returns {Promise<boolean>} - A promise resolving to a boolean indicating verification success.
    */
   async verifyWithdrawal(withdrawalPayload: WithdrawalProof): Promise<boolean> {
-    return await this.sdk.verifyWithdrawal(withdrawalPayload);
+    // return await this.sdk.verifyWithdrawal(withdrawalPayload); //TODO implement
+    return Promise.resolve(true);
   }
 
   /**
@@ -103,14 +109,15 @@ export class StarknetSdkProvider implements SdkProviderInterface {
    */
   async broadcastWithdrawal(
     withdrawalPayload: WithdrawalPayload,
-    chainName: ChainName,
-  ): Promise<{ hash: string }> {
-    const contracts = this.getContractsForChain(chainName);
-    return contracts.relay(
-      withdrawalPayload.withdrawal,
-      withdrawalPayload.proof,
-      withdrawalPayload.scope as Hash,
-    );
+    chainId: ChainId,
+  ): Promise<{ hash: Hash }> {
+    // const contracts = this.getContractsForChain(chainId);
+    // return contracts.relay(
+    //   withdrawalPayload.withdrawal,
+    //   withdrawalPayload.proof,
+    //   withdrawalPayload.scope as Hash,
+    // ); //TODO implement
+    return Promise.resolve(({hash: 1n as Hash }));
   }
 
   /**
@@ -121,7 +128,7 @@ export class StarknetSdkProvider implements SdkProviderInterface {
    * @returns {string} - The calculated context.
    */
   calculateContext(withdrawal: Withdrawal, scope: bigint): string {
-    return calculateContext(withdrawal, scope as Hash);
+    return this.calculateContext(withdrawal, scope as Hash);
   }
 
   /**
@@ -133,18 +140,23 @@ export class StarknetSdkProvider implements SdkProviderInterface {
    */
   async scopeData(
     scope: bigint,
-    chainId: number,
+    chainId: ChainId,
   ): Promise<{ poolAddress: Address; assetAddress: Address }> {
     try {
       const contracts = this.getContractsForChain(chainId);
-      const data = await contracts.getScopeData(scope);
-      return data;
+      // const data = await contracts.getScopeData(scope);
+      // return data;
+      // TODO: unmock
+      const mock_addr = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" as Address;
+      return Promise.resolve(({poolAddress: mock_addr, assetAddress: mock_addr }));
     } catch (error) {
-      if (error instanceof SDKError) {
-        throw SdkError.scopeDataError(error);
-      } else {
-        throw RelayerError.unknown(JSON.stringify(error));
-      }
+      // if (error instanceof SDKError) {
+      //   throw SdkError.scopeDataError(error);
+      // } else {
+      //   throw RelayerError.unknown(JSON.stringify(error));
+      // }
+      // TODO: update errors
+      throw(error);
     }
   }
 }

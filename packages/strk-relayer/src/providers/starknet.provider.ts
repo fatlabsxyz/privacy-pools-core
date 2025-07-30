@@ -1,17 +1,18 @@
-import { ChainName, ChainConfig} from "../config/types.js";
+import { ChainId, ChainConfig} from "../config/types.js";
 import { getChainConfig } from "../config/index.js";
 import { Account, RpcProvider, CallData, CallDetails, Call, BigNumberish } from 'starknet';
 import { FeeCommitment } from "../interfaces/relayer/common.js";
+import { Address } from "../types.js";
 
 interface Provider {
-  client(chainName: ChainName): RpcProvider;
-  estimateFee(chainName: ChainName, tx: TxData): Promise<bigint>;
+  client(chainId: ChainId): RpcProvider;
+  estimateFee(chainId: ChainId, tx: TxData): Promise<bigint>;
 }
 
 type ChainProperties = {
   config: ChainConfig,
   client: RpcProvider,
-  wallet: Account,  
+  account: Account,  
 }
 
 /// this is probably going to be handled by the 
@@ -27,31 +28,31 @@ type TxData = {
 
 /// Class that represens both Starknet and Sepolia chains
 export class StarknetProvider implements Provider {
-  chains: Map<ChainName, ChainProperties>; 
+  chains: Map<ChainId, ChainProperties>; 
   
   constructor () {
 
     this.chains = new Map([
-        chainExpand(ChainName.Starknet),
-        chainExpand(ChainName.Sepolia)
+        chainExpand(ChainId.Starknet),
+        chainExpand(ChainId.Sepolia)
       ]);
 
   }
 
-  client(chainName: ChainName): RpcProvider {
-    const config = getChainConfig(chainName); 
+  client(chainId: ChainId): RpcProvider {
+    const config = getChainConfig(chainId); 
     const nodeUrl = config.rpc_url;
     const provider = new RpcProvider({ nodeUrl });
     return provider;
   }
 
-  signer(chainName: ChainName): Account {
-    return this.chains.get(chainName)!.wallet;
+  signer(chainId: ChainId): Account {
+    return this.chains.get(chainId)!.account;
   }
 
-  async estimateFee(chainName: ChainName, tx: TxData): Promise<bigint> {
-    const chain = this.chains.get(chainName)!;
-    let account = chain.wallet;
+ async estimateFee(chainId: ChainId, tx: TxData): Promise<bigint> {
+    const chain = this.chains.get(chainId)!;
+    let account = chain.account;
 
     const transaction = {
       contractAddress: chain.config.entrypoint_address!,
@@ -63,21 +64,37 @@ export class StarknetProvider implements Provider {
     return fee.suggestedMaxFee;
   }
 
-  signRelayerCommitment(chainName: ChainName, feeCommitment: FeeCommitment): boolean {
+  signRelayerCommitment(chainId: ChainId, feeCommitment: FeeCommitment): boolean {
   //TODO: implement this
     return true;
   }
 
-  verifyRelayerCommitment(chainName: ChainName, feeCommitment: FeeCommitment): boolean {
+  verifyRelayerCommitment(chainId: ChainId, feeCommitment: FeeCommitment): boolean {
   //TODO: implement this
     return true;
   }
 }
 
- const chainExpand = (chain: ChainName): [ChainName, ChainProperties] => {
-  const config: ChainConfig = getChainConfig(chain) as ChainConfig; 
+const chainConfig = (chainId: ChainId): [ChainConfig, RpcProvider] => {
+  const config: ChainConfig = getChainConfig(chainId) as ChainConfig; 
   const client: RpcProvider = new RpcProvider({ nodeUrl: config.rpc_url });
-  const wallet: Account = new Account(client, config.fee_receiver_address, config.signer_private_key);
-  // TODO: WALLET IS PROBABLY NOT CORRECT i feel like it should be another addr and privkey
-  return [chain, {config, client, wallet}]
+  return [config, client];
+}
+
+
+const chainExpand = (chainId: ChainId): [ChainId, ChainProperties] => { 
+  const [config, client] = chainConfig(chainId);
+  const account: Account = new Account(client, config.fee_receiver_address, config.signer_private_key);
+  // TODO: This might not be CORRECT
+  return [chainId, {config, client, account}]
+}
+
+export function keysToAccount(privateKey: Address, publicKey: Address, chainId: ChainId): Account {
+  const [config, client] = chainConfig(chainId);
+  const account: Account = new Account(
+    client, 
+    publicKey,
+    privateKey
+  ); 
+  return account;
 }

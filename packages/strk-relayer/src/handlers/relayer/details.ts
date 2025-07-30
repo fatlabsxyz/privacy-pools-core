@@ -1,9 +1,8 @@
 import { NextFunction, Request, Response } from "express";
-import { DetailsMarshall } from "../../types.js";
-import { getAddress } from "viem/utils";
-import { Address } from "viem/accounts";
-import { CONFIG, getAssetConfig, getChainConfig, getQuoteExpirationTime } from "../../config/index.js";
+import { Address, DetailsMarshall } from "../../types.js";
+import { ChainId, CONFIG, getAssetConfig, getChainConfig, getQuoteExpirationTime } from "../../config/index.js";
 import { ValidationError } from "../../exceptions/base.exception.js";
+import { getAddress, parseChainId } from "../../utils.js";
 
 /**
  * Handler for the relayer details endpoint.
@@ -20,18 +19,11 @@ export function relayerDetailsHandler(
   next: NextFunction,
 ) {
   // Get query parameters
-  const chainIdParam = req.query.chainId as string;
-  const assetAddressParam = req.query.assetAddress as string;
-
-  // Parse chain ID
-  const parsedChainId = parseInt(chainIdParam, 10);
-  if (isNaN(parsedChainId)) {
-    throw ValidationError.invalidInput({ message: "Invalid chain ID format" });
-  }
-  const chainId = parsedChainId;
+  const chainId = parseChainId(req.query.chainId as string);
+  const assetAddressParam = req.query.assetAddress as Address;
 
   // Validate asset address format
-  let normalizedAssetAddress: string;
+  let normalizedAssetAddress: Address;
   try {
     normalizedAssetAddress = getAddress(assetAddressParam);
   } catch {
@@ -59,7 +51,7 @@ export function relayerDetailsHandler(
       new DetailsMarshall({
         feeBPS: assetConfig.fee_bps,
         feeReceiverAddress: getAddress(feeReceiverAddress),
-        chainId,
+        chainId: chainId,
         quoteExpirationTime: getQuoteExpirationTime(),
         maxGasPrice: chainConfig.max_gas_price,
         assetAddress: normalizedAssetAddress as Address,
@@ -70,3 +62,4 @@ export function relayerDetailsHandler(
 
   next();
 }
+

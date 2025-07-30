@@ -1,10 +1,10 @@
 import { quoteProvider, starknetProvider } from "../providers/index.js";
-import { ChainName } from "../config/types.js";
+import { ChainId } from "../config/types.js";
 import { QuoteResponse } from "../providers/quote.provider.js";
 import { Address } from "../types.js";
 
 interface QuoteFeeBPSParams {
-  chainName: ChainName,
+  chainId: ChainId,
   assetAddress: Address,
   amountIn: bigint,
   baseFeeBPS: bigint,
@@ -44,10 +44,12 @@ export class QuoteService {
   }
 
   async quoteFeeBPSNative(quoteParams: QuoteFeeBPSParams): Promise<QuoteFee> {
-    const { chainName, assetAddress, amountIn, baseFeeBPS, extraGas } = quoteParams;
-    const tx = "idk";
-    const gasPrice = await starknetProvider.estimateFee(chainName, tx); // TODO this needs tx
-
+    const { chainId, assetAddress, amountIn, baseFeeBPS, extraGas } = quoteParams;
+    // TODO get fee estimation from transaction, up it 20% ? 
+    // const tx = "idk"
+    // const gasPrice = await starknetProvider.estimateFee(chainId, tx); // this needs tx
+    //
+    const gasPrice = 10n;
     const EXTRA_GAS_AMOUNT = this.extraGasTxCost + this.extraGasFundAmount;
     const extraGasUnits = extraGas ? EXTRA_GAS_AMOUNT : 0n;
     const extraGasDetail = extraGas ? { extraGasTxCost: this.extraGasTxCost, extraGasFundAmount: this.extraGasFundAmount } : undefined;
@@ -56,7 +58,7 @@ export class QuoteService {
     if (assetAddress.toLowerCase() === NativeAddress.toLowerCase()) {
       quote = { num: 1n, den: 1n, path: ["none"] }; //TODO idk about this path value
     } else {
-      quote = await quoteProvider.quoteNativeTokenInERC20(chainName, assetAddress, amountIn);
+      quote = await quoteProvider.quoteNativeTokenInERC20(chainId, assetAddress, amountIn);
     }
 
     const feeBPS = await this.netFeeBPSNative(baseFeeBPS, amountIn, quote, gasPrice, extraGasUnits);

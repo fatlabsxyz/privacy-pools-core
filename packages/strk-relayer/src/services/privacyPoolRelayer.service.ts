@@ -25,7 +25,7 @@ import { decodeWithdrawalData, isFeeReceiverSameAsSigner, isNative, parseSignals
 import { quoteService } from "./index.js";
 import { StarknetProvider } from "../providers/starknet.provider.js";
 import { FeeCommitment } from "../interfaces/relayer/common.js";
-import { Withdrawal, WithdrawalProof } from "@0xbow/privacy-pools-core-sdk"; // TODO
+import { Address } from "../types.js";
 
 /**
  * Class representing the Privacy Pool Relayer, responsible for processing withdrawal requests.
@@ -51,7 +51,7 @@ export class StarknetPrivacyPoolRelayer {
    * @param {number} chainId - The chain ID to process the request on.
    * @returns {Promise<RelayerResponse>} - A promise resolving to the relayer response.
    */
-  async handleRequest(req: WithdrawalPayload, chainId: number): Promise<RelayerResponse> {
+  async handleRequest(req: WithdrawalPayload, chainId: ChainId): Promise<RelayerResponse> {
     const requestId = crypto.randomUUID();
     const timestamp = Date.now();
 
@@ -73,16 +73,17 @@ export class StarknetPrivacyPoolRelayer {
 
       const response = await this.broadcastWithdrawal(req, chainId);
       // const response = { hash: "0x" }
-
-      let txSwap;
-      if (extraGas) {
-        txSwap = await this.swapForNativeAndFund(req.scope, req.withdrawal, req.proof, chainId, response.hash);
-      }
+  
+      // TODO: swaps not supported yet
+      // let txSwap;
+      // if (extraGas) {
+      //   txSwap = await this.swapForNativeAndFund(req.scope, req.withdrawal, req.proof, chainId, response.hash);
+      // }
 
       return {
         success: true,
         txHash: response.hash,
-        txSwap,
+        // txSwap,
         timestamp,
         requestId,
       };
@@ -127,28 +128,30 @@ export class StarknetPrivacyPoolRelayer {
     }
   }
 
-  async swapForNativeAndFund(scope: bigint, withdrawal: Withdrawal, proof: WithdrawalProof, chainId: number, relayTx: string) {
-
-    const { assetAddress } = "asdf";
-      //await this.sdkProvider.scopeData(scope, chainId);
-    if (isNative(assetAddress)) {
-      // we shouldn't be here
-      return;
-    }
-
-    const relayReceipt = await starknetProvider.client(chainId).waitForTransactionReceipt({ hash: relayTx as `0x${string}` });
-    const { gasUsed: relayGasUsed, effectiveGasPrice: relayGasPrice } = relayReceipt;
-
-    const assetConfig = getAssetConfig(chainName, assetAddress);
-    const feeReceiver = getFeeReceiverAddress(chainName) as Address;
-    const { recipient, relayFeeBPS } = decodeWithdrawalData(withdrawal.data);
-    const withdrawnValue = parseSignals(proof.publicSignals).withdrawnValue;
-    const gasPrice = await starknetProvider.getGasPrice(chainName);
-
-    const feeGross = withdrawnValue * relayFeeBPS / 10_000n;
-    const feeBase = withdrawnValue * assetConfig.fee_bps / 10_000n;
-
-    const relayerGasRefundValue = gasPrice * quoteService.extraGasTxCost + relayGasPrice * relayGasUsed;
+  /// TODO swaps are not supported yet
+  // // async swapForNativeAndFund(scope: bigint, withdrawal: Withdrawal, proof: WithdrawalProof, chainId: ChainId, relayTx: string) {
+  //
+  //   const { assetAddress } = "asdf";
+  //     //await this.sdkProvider.scopeData(scope, chainId);
+  //   if (isNative(assetAddress)) {
+  //     // we shouldn't be here
+  //     return;
+  //   }
+  //
+  //   const relayReceipt = await starknetProvider.client(chainId).waitForTransactionReceipt({ hash: relayTx as Address });
+  //   const { gasUsed: relayGasUsed, effectiveGasPrice: relayGasPrice } = relayReceipt;
+  //
+  //   const assetConfig = getAssetConfig(chainId, assetAddress);
+  //   const feeReceiver = getFeeReceiverAddress(chainId) as Address;
+  //   const { recipient, relayFeeBPS } = decodeWithdrawalData(withdrawal.data);
+  //   const withdrawnValue = parseSignals(proof.publicSignals).withdrawnValue;
+  //
+  //   const gasPrice = await starknetProvider.getGasPrice(chainId); //TODO
+  //
+  //   const feeGross = withdrawnValue * relayFeeBPS / 10_000n;
+  //   const feeBase = withdrawnValue * assetConfig.fee_bps / 10_000n;
+  //
+  //   const relayerGasRefundValue = gasPrice * quoteService.extraGasTxCost + relayGasPrice * relayGasUsed;
 
     // const txHash = await this.uniswapProvider.swapExactInputForWeth({
     //   chainId,
@@ -161,9 +164,8 @@ export class StarknetPrivacyPoolRelayer {
     // });
     
     // TODO should check 
-    return txHash;
-
-  }
+    // return txHash;
+  // }
 
   /**
    * Verifies a withdrawal proof.
@@ -174,7 +176,9 @@ export class StarknetPrivacyPoolRelayer {
   protected async verifyProof(
     proof: WithdrawalPayload["proof"],
   ): Promise<boolean> {
-    return this.sdkProvider.verifyWithdrawal(proof);
+    // return this.sdkProvider.verifyWithdrawal(proof);
+    // TODO: SDK needed
+    return Promise.resolve(true);
   }
 
   /**
@@ -186,17 +190,22 @@ export class StarknetPrivacyPoolRelayer {
    */
   protected async broadcastWithdrawal(
     withdrawal: WithdrawalPayload,
-    chainId: number,
-  ): Promise<{ hash: string; }> {
+    chainId: ChainId,
+  ): Promise<{ hash: string }> {
     try {
-      return await this.sdkProvider.broadcastWithdrawal(withdrawal, chainId);
+      return Promise.resolve({hash:"hash"});
+      // TODO use sdk
+      // return await this.sdkProvider.broadcastWithdrawal(withdrawal, chainId);
     } catch (error) {
-      if (isViemError(error)) {
-        const { metaMessages, shortMessage } = error;
-        throw BlockchainError.txError((metaMessages ? metaMessages[0] : undefined) || shortMessage);
-      } else {
-        throw RelayerError.unknown("Something went wrong while broadcasting Tx");
-      }
+      // TODO use StarknetJs error logger
+      console.error(error);
+      throw Error();
+      // if (isViemError(error)) {
+      //   const { metaMessages, shortMessage } = error;
+      //   throw BlockchainError.txError((metaMessages ? metaMessages[0] : undefined) || shortMessage);
+      // } else {
+      //   throw RelayerError.unknown("Something went wrong while broadcasting Tx");
+      // }
     }
   }
 
@@ -208,11 +217,12 @@ export class StarknetPrivacyPoolRelayer {
    * @throws {WithdrawalValidationError} - If validation fails.
    * @throws {ValidationError} - If public signals are malformed.
    */
-  protected async validateWithdrawal(wp: WithdrawalPayload, chainName: ChainId) {
-    const entrypointAddress = getEntrypointAddress(chainName);
-    const feeReceiverAddress = getFeeReceiverAddress(chainName);
-    const signerAddress = privateKeyToAccount(getSignerPrivateKey(chainName) as `0x${string}`).address;
+  protected async validateWithdrawal(wp: WithdrawalPayload, chainId: ChainId) {
+    const entrypointAddress = getEntrypointAddress(chainId);
+    const feeReceiverAddress = getFeeReceiverAddress(chainId);
+    // const signerAddress = privateKeyToAccount(getSignerPrivateKey(chainId) as Address).address;
     //TODO implement privateKeyToAccount
+    const signerAddress = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 
     const extraGas = wp.feeCommitment?.extraGas ?? false;
 
@@ -239,7 +249,7 @@ export class StarknetPrivacyPoolRelayer {
       );
     }
 
-    if (extraGas && !isFeeReceiverSameAsSigner(chainName)) {
+    if (extraGas && !isFeeReceiverSameAsSigner(chainId)) {
       if (getAddress(feeRecipient) !== getAddress(signerAddress)) {
         throw WithdrawalValidationError.feeReceiverMismatch(
           `Fee recipient with extraGas mismatch: expected "${signerAddress}", got "${feeRecipient}".`,
@@ -262,14 +272,14 @@ export class StarknetPrivacyPoolRelayer {
       );
     }
 
-    const { assetAddress } = await this.sdkProvider.scopeData(wp.scope, chainName);
+    const { assetAddress } = await this.sdkProvider.scopeData(wp.scope, chainId);
 
     // Get asset configuration for this chain and asset
-    const assetConfig = getAssetConfig(chainName, assetAddress);
+    const assetConfig = getAssetConfig(chainId, assetAddress);
 
     if (!assetConfig) {
       throw WithdrawalValidationError.assetNotSupported(
-        `Asset ${assetAddress} is not supported on chain ${chainName}.`
+        `Asset ${assetAddress} is not supported on chain ${chainId}.`
       );
     }
 
@@ -295,7 +305,7 @@ export class StarknetPrivacyPoolRelayer {
         );
       }
 
-      if (!await validFeeCommitment(chainName, wp.feeCommitment)) {
+      if (!await validFeeCommitment(chainId, wp.feeCommitment)) {
         throw WithdrawalValidationError.relayerCommitmentRejected(
           `Invalid relayer commitment`,
         );
@@ -304,7 +314,7 @@ export class StarknetPrivacyPoolRelayer {
     } else {
 
       const currentFeeBPS = await quoteService.quoteFeeBPSNative({
-        chainName,
+        chainId,
         amountIn: proofSignals.withdrawnValue,
         assetAddress,
         baseFeeBPS: assetConfig.fee_bps,
@@ -333,6 +343,6 @@ function commitmentExpired(feeCommitment: FeeCommitment): boolean {
   return feeCommitment.expiration < Number(new Date());
 }
 
-async function validFeeCommitment(chainName: ChainId, feeCommitment: FeeCommitment): Promise<boolean> {
-  return starknetProvider.verifyRelayerCommitment(chainName, feeCommitment);
+async function validFeeCommitment(chainId: ChainId, feeCommitment: FeeCommitment): Promise<boolean> {
+  return starknetProvider.verifyRelayerCommitment(chainId, feeCommitment);
 }

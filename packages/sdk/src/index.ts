@@ -10,6 +10,7 @@ export * from "./types/events.js";
 // Errors
 export * from "./errors/base.error.js";
 export * from "./errors/account.error.js";
+export * from "./errors/batchRelay.error.js";
 
 // Interfaces
 export * from "./interfaces/circuits.interface.js";

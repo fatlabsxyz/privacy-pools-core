@@ -16,6 +16,7 @@ import {
   validateBatchRelayData,
   calculateBatchFees 
 } from '../utils/batchRelayEncoder.js';
+import { BatchRelayError } from '../errors/batchRelay.error.js';
 
 /**
  * Service for building and managing batch withdrawals
@@ -49,17 +50,15 @@ export class BatchWithdrawalService {
   ): Promise<BatchWithdrawalPayload> {
     // Validate inputs
     if (notes.length === 0) {
-      throw new Error('BatchWithdrawal: At least one note is required');
+      throw BatchRelayError.emptyBatch();
     }
 
     if (notes.length !== proofInputs.length) {
-      throw new Error(
-        `BatchWithdrawal: Notes count (${notes.length}) must match proof inputs count (${proofInputs.length})`
-      );
+      throw BatchRelayError.invalidBatchSize(proofInputs.length, notes.length);
     }
 
     if (notes.length > 255) {
-      throw new Error('BatchWithdrawal: Cannot exceed 255 notes in a batch');
+      throw BatchRelayError.batchTooLarge(notes.length);
     }
 
     // Create BatchRelayData
@@ -77,11 +76,14 @@ export class BatchWithdrawalService {
     try {
       const maxFeeBPS = await this.contractsService.getMaxRelayFeeBPS(batchRelayerAddress);
       if (relayFeeBPS > maxFeeBPS) {
-        throw new Error(
-          `BatchWithdrawal: relayFeeBPS (${relayFeeBPS}) exceeds maximum (${maxFeeBPS})`
-        );
+        throw BatchRelayError.feeTooHigh(relayFeeBPS, maxFeeBPS);
       }
     } catch (error) {
+      // If it's our specific error, re-throw it
+      if (error instanceof BatchRelayError) {
+        throw error;
+      }
+      // Otherwise just warn - contract might not be deployed yet
       console.warn('Could not verify max relay fee BPS:', error);
     }
 
@@ -108,9 +110,7 @@ export class BatchWithdrawalService {
     const firstContext = proofs[0].publicSignals[3]; // context is at index 3
     for (let i = 1; i < proofs.length; i++) {
       if (proofs[i].publicSignals[3] !== firstContext) {
-        throw new Error(
-          `BatchWithdrawal: All proofs must have the same withdrawal context. Proof ${i} has different context.`
-        );
+        throw BatchRelayError.contextMismatch(i);
       }
     }
 
@@ -130,8 +130,9 @@ export class BatchWithdrawalService {
   ): void {
     // Check processooor matches
     if (payload.withdrawal.processooor !== batchRelayerAddress) {
-      throw new Error(
-        `Invalid processooor: expected ${batchRelayerAddress}, got ${payload.withdrawal.processooor}`
+      throw BatchRelayError.invalidProcessooor(
+        batchRelayerAddress,
+        payload.withdrawal.processooor
       );
     }
 
@@ -141,8 +142,9 @@ export class BatchWithdrawalService {
 
     // Check batch size matches proofs
     if (batchData.batchSize !== payload.proofs.length) {
-      throw new Error(
-        `Batch size mismatch: expected ${batchData.batchSize}, got ${payload.proofs.length} proofs`
+      throw BatchRelayError.invalidBatchSize(
+        batchData.batchSize,
+        payload.proofs.length
       );
     }
 
@@ -151,7 +153,7 @@ export class BatchWithdrawalService {
       const firstContext = payload.proofs[0].publicSignals[3];
       for (let i = 1; i < payload.proofs.length; i++) {
         if (payload.proofs[i].publicSignals[3] !== firstContext) {
-          throw new Error(`Proof ${i} has different withdrawal context`);
+          throw BatchRelayError.contextMismatch(i);
         }
       }
     }

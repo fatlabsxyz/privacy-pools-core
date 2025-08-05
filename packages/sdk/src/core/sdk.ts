@@ -1,8 +1,14 @@
 import { CommitmentService } from "./commitment.service.js";
 import { WithdrawalService } from "./withdrawal.service.js";
+import { BatchWithdrawalService } from "./batchWithdrawal.service.js";
 import { CircuitsInterface } from "../interfaces/circuits.interface.js";
 import { Commitment, CommitmentProof } from "../types/commitment.js";
-import { WithdrawalProof, WithdrawalProofInput } from "../types/withdrawal.js";
+import { 
+  WithdrawalProof, 
+  WithdrawalProofInput,
+  BatchWithdrawalPayload,
+  BatchRelayResult
+} from "../types/withdrawal.js";
 import { ContractInteractionsService } from "./contracts.service.js";
 import { Hex, Address, Chain } from "viem";
 import { AccountCommitment } from "../types/account.js";
@@ -14,6 +20,8 @@ import { AccountCommitment } from "../types/account.js";
 export class PrivacyPoolSDK {
   private readonly commitmentService: CommitmentService;
   private readonly withdrawalService: WithdrawalService;
+  private batchWithdrawalService?: BatchWithdrawalService;
+  private contractsService?: ContractInteractionsService;
 
   constructor(circuits: CircuitsInterface) {
     this.commitmentService = new CommitmentService(circuits);
@@ -26,12 +34,20 @@ export class PrivacyPoolSDK {
     entrypointAddress: Address,
     privateKey: Hex,
   ): ContractInteractionsService {
-    return new ContractInteractionsService(
+    this.contractsService = new ContractInteractionsService(
       rpcUrl,
       chain,
       entrypointAddress,
       privateKey,
     );
+    
+    // Initialize batch withdrawal service when contracts service is created
+    this.batchWithdrawalService = new BatchWithdrawalService(
+      this.withdrawalService,
+      this.contractsService
+    );
+    
+    return this.contractsService;
   }
 
   /**
@@ -88,5 +104,142 @@ export class PrivacyPoolSDK {
     withdrawalProof: WithdrawalProof,
   ): Promise<boolean> {
     return this.withdrawalService.verifyWithdrawal(withdrawalProof);
+  }
+
+  /**
+   * Execute a batch withdrawal from multiple notes
+   * @param notes - Notes to withdraw
+   * @param batchRelayerAddress - BatchRelayer contract address
+   * @param recipient - Final recipient
+   * @param feeRecipient - Fee recipient
+   * @param relayFeeBPS - Fee in basis points
+   * @param poolAddress - Privacy pool address
+   * @param proofInputs - Proof inputs for each note
+   * @returns Transaction result
+   */
+  public async batchWithdraw(
+    notes: AccountCommitment[],
+    batchRelayerAddress: Address,
+    recipient: Address,
+    feeRecipient: Address,
+    relayFeeBPS: bigint,
+    poolAddress: Address,
+    proofInputs: WithdrawalProofInput[]
+  ): Promise<BatchRelayResult> {
+    if (!this.batchWithdrawalService) {
+      throw new Error('BatchWithdrawal service not initialized. Call createContractInstance first.');
+    }
+
+    // Build batch withdrawal
+    const payload = await this.batchWithdrawalService.buildBatchWithdrawal(
+      notes,
+      batchRelayerAddress,
+      recipient,
+      feeRecipient,
+      relayFeeBPS,
+      poolAddress,
+      proofInputs
+    );
+
+    // Execute batch relay
+    return await this.batchWithdrawalService.executeBatchRelay(
+      batchRelayerAddress,
+      payload
+    );
+  }
+
+  /**
+   * Prepare a batch withdrawal for relaying (doesn't execute)
+   */
+  public async prepareBatchWithdrawal(
+    notes: AccountCommitment[],
+    batchRelayerAddress: Address,
+    recipient: Address,
+    feeRecipient: Address,
+    relayFeeBPS: bigint,
+    poolAddress: Address,
+    proofInputs: WithdrawalProofInput[]
+  ): Promise<BatchWithdrawalPayload> {
+    if (!this.batchWithdrawalService) {
+      throw new Error('BatchWithdrawal service not initialized. Call createContractInstance first.');
+    }
+
+    return await this.batchWithdrawalService.buildBatchWithdrawal(
+      notes,
+      batchRelayerAddress,
+      recipient,
+      feeRecipient,
+      relayFeeBPS,
+      poolAddress,
+      proofInputs
+    );
+  }
+
+  /**
+   * Estimate gas for a batch withdrawal
+   */
+  public async estimateBatchWithdrawalGas(
+    notes: AccountCommitment[],
+    batchRelayerAddress: Address,
+    recipient: Address,
+    feeRecipient: Address,
+    relayFeeBPS: bigint,
+    poolAddress: Address,
+    proofInputs: WithdrawalProofInput[]
+  ): Promise<bigint> {
+    if (!this.batchWithdrawalService) {
+      throw new Error('BatchWithdrawal service not initialized. Call createContractInstance first.');
+    }
+
+    // Build payload
+    const payload = await this.batchWithdrawalService.buildBatchWithdrawal(
+      notes,
+      batchRelayerAddress,
+      recipient,
+      feeRecipient,
+      relayFeeBPS,
+      poolAddress,
+      proofInputs
+    );
+
+    // Estimate gas
+    return await this.batchWithdrawalService.estimateGas(
+      batchRelayerAddress,
+      payload
+    );
+  }
+
+  /**
+   * Calculate amounts for a batch withdrawal
+   */
+  public calculateBatchAmounts(
+    notes: AccountCommitment[],
+    relayFeeBPS: bigint
+  ): {
+    totalAmount: bigint;
+    fee: bigint;
+    amountAfterFees: bigint;
+  } {
+    if (!this.batchWithdrawalService) {
+      // Can calculate without service since it's just math
+      const totalAmount = notes.reduce((sum, note) => sum + note.value, 0n);
+      const fee = (totalAmount * relayFeeBPS) / 10000n;
+      const amountAfterFees = totalAmount - fee;
+      
+      return {
+        totalAmount,
+        fee,
+        amountAfterFees
+      };
+    }
+
+    return this.batchWithdrawalService.calculateBatchAmounts(notes, relayFeeBPS);
+  }
+
+  /**
+   * Get the batch withdrawal service instance
+   */
+  public getBatchWithdrawalService(): BatchWithdrawalService | undefined {
+    return this.batchWithdrawalService;
   }
 }

@@ -10,8 +10,9 @@ import {
   createWalletClient,
   getAddress,
   http,
+  decodeEventLog,
 } from "viem";
-import { Withdrawal, WithdrawalProof } from "../types/withdrawal.js";
+import { Withdrawal, WithdrawalProof, BatchRelayResult } from "../types/withdrawal.js";
 import {
   AssetConfig,
   ContractInteractions,
@@ -19,11 +20,13 @@ import {
 } from "../interfaces/contracts.interface.js";
 import { IEntrypointABI } from "../abi/IEntrypoint.js";
 import { IPrivacyPoolABI } from "../abi/IPrivacyPool.js";
+import { IBatchRelayerABI } from "../abi/IBatchRelayer.js";
 import { ERC20ABI } from "../abi/ERC20.js";
 import { privateKeyToAccount } from "viem/accounts";
 import { CommitmentProof, Hash } from "../types/commitment.js";
 import { bigintToHex } from "../crypto.js";
 import { ContractError } from "../errors/base.error.js";
+import { decodeBatchRelayData } from "../utils/batchRelayEncoder.js";
 
 export class ContractInteractionsService implements ContractInteractions {
   private publicClient: PublicClient;
@@ -436,6 +439,169 @@ export class ContractInteractionsService implements ContractInteractions {
       console.error("Transaction Execution Error:", { error, request });
       throw new Error(
         `Transaction failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  /**
+   * Execute a batch relay through the BatchRelayer contract
+   * @param batchRelayerAddress - Address of the BatchRelayer contract
+   * @param poolAddress - Address of the privacy pool
+   * @param withdrawal - Withdrawal struct with processooor set to BatchRelayer
+   * @param proofs - Array of withdrawal proofs
+   * @returns Transaction hash and batch relay details
+   */
+  async batchRelay(
+    batchRelayerAddress: Address,
+    poolAddress: Address,
+    withdrawal: Withdrawal,
+    proofs: WithdrawalProof[]
+  ): Promise<BatchRelayResult> {
+    // Validate inputs
+    if (withdrawal.processooor !== batchRelayerAddress) {
+      throw new Error(
+        `Invalid processooor: expected ${batchRelayerAddress}, got ${withdrawal.processooor}`
+      );
+    }
+
+    // Decode and validate BatchRelayData
+    const batchRelayData = decodeBatchRelayData(withdrawal.data);
+    if (batchRelayData.batchSize !== proofs.length) {
+      throw new Error(
+        `Batch size mismatch: expected ${batchRelayData.batchSize}, got ${proofs.length} proofs`
+      );
+    }
+
+    try {
+      // Format all proofs
+      const formattedProofs = proofs.map(proof => this.formatProof(proof));
+
+      // Simulate the contract call
+      const { request } = await this.publicClient.simulateContract({
+        address: batchRelayerAddress,
+        abi: IBatchRelayerABI as Abi,
+        functionName: "batchRelay",
+        args: [poolAddress, withdrawal, formattedProofs],
+        account: this.account,
+      });
+
+      // Execute the transaction
+      const hash = await this.walletClient.writeContract(request);
+
+      // Wait for transaction receipt
+      const receipt = await this.publicClient.waitForTransactionReceipt({ hash });
+
+      // Parse the BatchRelayed event from the logs
+      // The BatchRelayer contract emits this event with the final amounts
+      const batchRelayedEvent = receipt.logs
+        .map(log => {
+          try {
+            return decodeEventLog({
+              abi: IBatchRelayerABI,
+              data: log.data,
+              topics: log.topics,
+            });
+          } catch {
+            return null;
+          }
+        })
+        .find(event => event?.eventName === 'BatchRelayed');
+
+      if (!batchRelayedEvent) {
+        throw new Error('BatchRelayed event not found in transaction receipt');
+      }
+
+      const amountAfterFees = batchRelayedEvent.args._amountAfterFees as bigint;
+      const fee = batchRelayedEvent.args._fee as bigint;
+      const totalAmount = amountAfterFees + fee;
+
+      return {
+        transactionHash: hash,
+        recipient: batchRelayData.recipient,
+        totalAmount,
+        fee,
+        amountAfterFees,
+      };
+    } catch (error) {
+      console.error("Batch Relay Error:", { error, batchRelayerAddress, poolAddress });
+      throw new Error(
+        `Failed to execute batch relay: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    }
+  }
+
+  /**
+   * Estimate gas for a batch relay transaction
+   */
+  async estimateBatchRelayGas(
+    batchRelayerAddress: Address,
+    poolAddress: Address,
+    withdrawal: Withdrawal,
+    proofs: WithdrawalProof[]
+  ): Promise<bigint> {
+    try {
+      const formattedProofs = proofs.map(proof => this.formatProof(proof));
+      
+      const gas = await this.publicClient.estimateContractGas({
+        address: batchRelayerAddress,
+        abi: IBatchRelayerABI as Abi,
+        functionName: "batchRelay",
+        args: [poolAddress, withdrawal, formattedProofs],
+        account: this.account,
+      });
+
+      return gas;
+    } catch (error) {
+      console.error("Gas Estimation Error:", { error });
+      throw new Error(
+        `Failed to estimate gas: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    }
+  }
+
+  /**
+   * Simulate a batch relay to check if it would succeed
+   */
+  async simulateBatchRelay(
+    batchRelayerAddress: Address,
+    poolAddress: Address,
+    withdrawal: Withdrawal,
+    proofs: WithdrawalProof[]
+  ): Promise<boolean> {
+    try {
+      const formattedProofs = proofs.map(proof => this.formatProof(proof));
+      
+      await this.publicClient.simulateContract({
+        address: batchRelayerAddress,
+        abi: IBatchRelayerABI as Abi,
+        functionName: "batchRelay",
+        args: [poolAddress, withdrawal, formattedProofs],
+        account: this.account,
+      });
+
+      return true;
+    } catch (error) {
+      console.error("Simulation Error:", { error });
+      return false;
+    }
+  }
+
+  /**
+   * Get the maximum relay fee BPS from BatchRelayer contract
+   */
+  async getMaxRelayFeeBPS(batchRelayerAddress: Address): Promise<bigint> {
+    try {
+      const maxFeeBPS = await this.publicClient.readContract({
+        address: batchRelayerAddress,
+        abi: IBatchRelayerABI as Abi,
+        functionName: "MAX_RELAY_FEE_BPS",
+      });
+
+      return maxFeeBPS as bigint;
+    } catch (error) {
+      console.error("Read Contract Error:", { error });
+      throw new Error(
+        `Failed to read MAX_RELAY_FEE_BPS: ${error instanceof Error ? error.message : "Unknown error"}`
       );
     }
   }

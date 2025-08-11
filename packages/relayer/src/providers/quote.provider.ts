@@ -10,10 +10,18 @@ export class QuoteProvider {
   }
 
   async quoteNativeTokenInERC20(chainId: number, addressIn: Address, amountIn: bigint): Promise<{ num: bigint, den: bigint, path: (string | number)[] }> {
-    // FIX: If FraxUSD, use USDC price instead
+    // XXX: if FRXUSD, use USDC quote but adjust for decimal difference
     if (getAddress(addressIn) === getAddress(FRAXUSD_ADDRESS)) {
-      const { in: in_, out, path } = (await uniswapProvider.quoteNativeToken(chainId, USDC_ADDRESS as Address, amountIn))!;
-      return { num: out.amount, den: in_.amount, path };
+
+      // FRXUSD has 18 decimals, USDC has 6 decimals
+      // adjust the amountIn from 18 decimals to 6 decimals
+      const DECIMAL_DIFFERENCE = 10n ** 12n;  // 18-6
+      const adjustedAmount = amountIn / DECIMAL_DIFFERENCE;
+
+      const { in: in_, out, path } = (await uniswapProvider.quoteNativeToken(chainId, USDC_ADDRESS as Address, adjustedAmount))!;
+
+      // scale back to match FRXUSD 18 decimal
+      return { num: out.amount * DECIMAL_DIFFERENCE, den: in_.amount * DECIMAL_DIFFERENCE, path };
     }
 
     const { in: in_, out, path } = (await uniswapProvider.quoteNativeToken(chainId, addressIn, amountIn))!;

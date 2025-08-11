@@ -18,10 +18,11 @@ export class QuoteProvider {
       const DECIMAL_DIFFERENCE = 10n ** 12n;  // 18-6
       const adjustedAmount = amountIn / DECIMAL_DIFFERENCE;
 
+      // Get the USDC quote - this returns how much ETH we need for X USDC
       const { in: in_, out, path } = (await uniswapProvider.quoteNativeToken(chainId, USDC_ADDRESS as Address, adjustedAmount))!;
 
-      // scale back to match FRXUSD 18 decimal
-      return { num: out.amount * DECIMAL_DIFFERENCE, den: in_.amount * DECIMAL_DIFFERENCE, path };
+      // So num = ETH amount, den = FRXUSD amount in 18 decimals
+      return { num: out.amount, den: amountIn, path };
     }
 
     const { in: in_, out, path } = (await uniswapProvider.quoteNativeToken(chainId, addressIn, amountIn))!;

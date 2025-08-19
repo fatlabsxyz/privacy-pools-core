@@ -1,16 +1,15 @@
 import { NextFunction, Request, Response } from "express";
-import { getAddress } from "viem";
-import { ConfigError, ValidationError } from "../../exceptions/base.exception.js";
+import { CONFIG, getChainConfig } from "../../config/index.js";
+import { ConfigError, ValidationError, RelayerError } from "../../exceptions/base.exception.js";
 import {
   RelayerResponse,
-  RelayRequestBody,
   WithdrawalPayload,
 } from "../../interfaces/relayer/request.js";
-import { validateRelayRequestBody } from "../../schemes/relayer/request.scheme.js";
+import { web3Provider } from "../../providers/index.js";
+import { zRelayRequest } from "../../schemes/relayer/request.scheme.js";
 import { privacyPoolRelayer } from "../../services/index.js";
 import { RequestMashall } from "../../types.js";
-import { CONFIG, getChainConfig } from "../../config/index.js";
-import { web3Provider } from "../../providers/index.js";
+import { getAddress } from "viem";
 
 /**
  * Converts a RelayRequestBody into a WithdrawalPayload.
@@ -19,25 +18,19 @@ import { web3Provider } from "../../providers/index.js";
  * @returns {WithdrawalPayload} - The formatted withdrawal payload.
  */
 function relayRequestBodyToWithdrawalPayload(
-  body: RelayRequestBody,
+  body: ReturnType<typeof zRelayRequest['parse']>,
 ): WithdrawalPayload {
-  const proof = { ...body.proof, protocol: "groth16", curve: "bn128" };
-  const publicSignals = body.publicSignals;
-  const scope = BigInt(body.scope);
-  const withdrawal = {
-    processooor: getAddress(body.withdrawal.processooor),
-    data: body.withdrawal.data as `0x{string}`,
-  };
-  const wp = {
+  return {
+    ...body,
     proof: {
-      proof,
-      publicSignals,
+      proof: {
+        ...body.proof,
+        protocol: "groth16",
+        curve: "bn128"
+      },
+      publicSignals: body.publicSignals,
     },
-    withdrawal,
-    scope,
-    feeCommitment: body.feeCommitment
   };
-  return wp;
 }
 
 /**
@@ -58,36 +51,23 @@ function isChainSupported(chainId: number): boolean {
  * @throws {ValidationError} - If the input data is invalid.
  * @throws {ConfigError} - If the chain is not supported.
  */
-function parseWithdrawal(body: Request["body"]): { payload: WithdrawalPayload, chainId: number } {
-  if (validateRelayRequestBody(body)) {
-    try {
-      const payload = relayRequestBodyToWithdrawalPayload(body);
-      const chainId = typeof body.chainId === 'string' ? parseInt(body.chainId, 10) : body.chainId;
+function parseWithdrawal(body: Request["body"]): { payload: WithdrawalPayload, chainId: number; } {
 
-      if (isNaN(chainId)) {
-        throw ValidationError.invalidInput({ message: "Invalid chain ID format" });
-      }
+  const { data, error, success } = zRelayRequest.safeParse(body);
 
-      // Check if the chain is supported early
-      if (!isChainSupported(chainId)) {
-        throw ValidationError.invalidInput({ message: `Chain with ID ${chainId} not supported.` });
-      }
-
-      return { payload, chainId };
-    } catch (error) {
-      console.error(error);
-      // Re-throw ConfigError as is
-      if (error instanceof ConfigError) {
-        throw error;
-      }
-      // TODO: extend this catch to return more details about the issue (viem error, node error, etc)
-      throw ValidationError.invalidInput({
-        message: "Can't parse payload into SDK structure",
-      });
-    }
-  } else {
-    throw ValidationError.invalidInput({ message: "Payload format error" });
+  if (!success) {
+    throw ValidationError.invalidInput({ error, message: "Error parsing payload" });
   }
+
+  const payload = relayRequestBodyToWithdrawalPayload(data);
+
+  // Check if the chain is supported early
+  if (!isChainSupported(data.chainId)) {
+    throw ValidationError.invalidInput({ message: `Chain with ID ${data.chainId} not supported.` });
+  }
+
+  return { payload, chainId: data.chainId };
+
 }
 
 /**
@@ -104,10 +84,19 @@ export async function relayRequestHandler(
 ) {
   try {
     const { payload: withdrawalPayload, chainId } = parseWithdrawal(req.body);
+
     const maxGasPrice = getChainConfig(chainId)?.max_gas_price;
     const currentGasPrice = await web3Provider.getGasPrice(chainId);
+
+    // XXX: Block extraGas for FraxUSD
+    const FRAXUSD_ADDRESS = "0xCAcd6fd266aF91b8AeD52aCCc382b4e165586E29";
+
+    if (withdrawalPayload.feeCommitment?.extraGas && getAddress(withdrawalPayload.feeCommitment?.asset) == getAddress(FRAXUSD_ADDRESS)) {
+      throw RelayerError.assetNotSupported(`Extra gas feature not supported for FraxUSD`);
+    }
+
     if (maxGasPrice !== undefined && currentGasPrice > maxGasPrice) {
-      throw ConfigError.maxGasPrice(`Current gas price ${currentGasPrice} is higher than max price ${maxGasPrice}`)
+      throw ConfigError.maxGasPrice(`Current gas price ${currentGasPrice} is higher than max price ${maxGasPrice}`);
     }
 
     const requestResponse: RelayerResponse =

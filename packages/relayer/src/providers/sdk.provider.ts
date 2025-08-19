@@ -20,6 +20,8 @@ import { WithdrawalPayload } from "../interfaces/relayer/request.js";
 import { RelayerError, SdkError, ConfigError } from "../exceptions/base.exception.js";
 import { SdkProviderInterface } from "../types/sdk.types.js";
 import { createChainObject } from "../utils.js";
+// TODO: Import from @0xbow/privacy-pools-core-sdk once batch relay types are published
+import type { BatchRelayResult } from "../../../sdk/src/types/withdrawal.js";
 
 /**
  * Class representing the SDK provider for interacting with Privacy Pool SDK.
@@ -140,6 +142,49 @@ export class SdkProvider implements SdkProviderInterface {
     } catch (error) {
       if (error instanceof SDKError) {
         throw SdkError.scopeDataError(error);
+      } else {
+        throw RelayerError.unknown(JSON.stringify(error));
+      }
+    }
+  }
+
+  /**
+   * Executes a batch relay transaction.
+   *
+   * @param {Address} batchRelayerAddress - The address of the batch relayer contract.
+   * @param {Address} poolAddress - The address of the privacy pool.
+   * @param {Withdrawal} withdrawal - The withdrawal data.
+   * @param {WithdrawalProof[]} proofs - Array of withdrawal proofs.
+   * @param {number} chainId - The chain ID.
+   * @returns {Promise<BatchRelayResult>} - A promise resolving to the batch relay result.
+   */
+  async executeBatchRelay(
+    batchRelayerAddress: Address,
+    poolAddress: Address,
+    withdrawal: Withdrawal,
+    proofs: WithdrawalProof[],
+    chainId: number,
+  ): Promise<BatchRelayResult> {
+    try {
+      const contracts = this.getContractsForChain(chainId);
+      const result = await contracts.batchRelay(
+        batchRelayerAddress,
+        poolAddress,
+        withdrawal,
+        proofs
+      );
+      
+      // Map SDK result to relayer's BatchRelayResult interface
+      // SDK uses 'transactionHash' while relayer uses 'txHash'
+      return {
+        txHash: result.transactionHash,
+        totalAmount: result.totalAmount,
+        fee: result.fee,
+        amountAfterFees: result.amountAfterFees
+      };
+    } catch (error) {
+      if (error instanceof SDKError) {
+        throw SdkError.batchRelayError(error);
       } else {
         throw RelayerError.unknown(JSON.stringify(error));
       }

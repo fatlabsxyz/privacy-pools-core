@@ -36,6 +36,14 @@ export enum ErrorCode {
 
   // Quote errors
   QUOTE_ERROR = "QUOTE_ERROR",
+  
+  // Batch relay errors
+  BATCH_SIZE_MISMATCH = "BATCH_SIZE_MISMATCH",
+  BATCH_SIZE_EXCEEDED = "BATCH_SIZE_EXCEEDED",
+  CONTEXT_MISMATCH_BATCH = "CONTEXT_MISMATCH_BATCH",
+  INVALID_PROOF_AT_INDEX = "INVALID_PROOF_AT_INDEX",
+  FEE_COMMITMENT_EXPIRED = "FEE_COMMITMENT_EXPIRED",
+  FEE_COMMITMENT_MISMATCH = "FEE_COMMITMENT_MISMATCH",
 }
 
 /**
@@ -135,6 +143,17 @@ export class ZkError extends RelayerError {
   public static invalidProof(details?: Record<string, unknown>): ZkError {
     return new ZkError("Invalid proof", ErrorCode.INVALID_PROOF, details);
   }
+  
+  /**
+   * Creates an error for invalid proof at specific index in batch.
+   */
+  public static invalidProofAtIndex(index: number): ZkError {
+    return new ZkError(
+      `Invalid proof at index ${index}`,
+      ErrorCode.INVALID_PROOF_AT_INDEX,
+      { index }
+    );
+  }
 }
 
 export class ConfigError extends RelayerError {
@@ -230,13 +249,6 @@ export class WithdrawalValidationError extends RelayerError {
     );
   }
 
-  public static contextMismatch(details: string) {
-    return new WithdrawalValidationError(
-      "Context does not match public signal",
-      ErrorCode.CONTEXT_MISMATCH,
-      details,
-    );
-  }
 
   public static withdrawnValueTooSmall(details: string) {
     return new WithdrawalValidationError(
@@ -253,6 +265,45 @@ export class WithdrawalValidationError extends RelayerError {
       details,
     );
   }
+  
+  public static batchSizeMismatch(expected: number, actual: number) {
+    return new WithdrawalValidationError(
+      `Batch size mismatch: expected ${expected}, got ${actual}`,
+      ErrorCode.BATCH_SIZE_MISMATCH,
+      { expected, actual }
+    );
+  }
+  
+  public static feeTooHigh(fee: bigint, max: bigint) {
+    return new WithdrawalValidationError(
+      `Relay fee ${fee} exceeds maximum ${max}`,
+      ErrorCode.FEE_TOO_LOW,
+      { fee: fee.toString(), max: max.toString() }
+    );
+  }
+  
+  public static amountTooLow(amount: string, minimum: string) {
+    return new WithdrawalValidationError(
+      `Total amount ${amount} is below minimum ${minimum}`,
+      ErrorCode.INSUFFICIENT_WITHDRAWN_VALUE,
+      { amount, minimum }
+    );
+  }
+  
+  public static feeCommitmentExpired() {
+    return new WithdrawalValidationError(
+      "Fee commitment has expired",
+      ErrorCode.FEE_COMMITMENT_EXPIRED
+    );
+  }
+  
+  public static feeCommitmentMismatch(expected: string, actual: string) {
+    return new WithdrawalValidationError(
+      `Fee commitment mismatch: expected ${expected}, got ${actual}`,
+      ErrorCode.FEE_COMMITMENT_MISMATCH,
+      { expected, actual }
+    );
+  }
 }
 
 export class SdkError extends RelayerError {
@@ -263,6 +314,10 @@ export class SdkError extends RelayerError {
 
   public static scopeDataError(error: Error) {
     return new SdkError(`SdkError: SCOPE_DATA_ERROR ${error.message}`);
+  }
+
+  public static batchRelayError(error: Error) {
+    return new SdkError(`SdkError: BATCH_RELAY_ERROR ${error.message}`);
   }
 }
 
@@ -275,6 +330,10 @@ export class BlockchainError extends RelayerError {
   public static txError(
     details?: Record<string, unknown> | string) {
     return new BlockchainError("Transaction failed", ErrorCode.TRANSACTION_ERROR, details);
+  }
+  
+  public static transactionFailed(details: string) {
+    return new BlockchainError("Transaction execution failed", ErrorCode.TRANSACTION_ERROR, details);
   }
 
 }

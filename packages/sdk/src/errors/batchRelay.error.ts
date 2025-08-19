@@ -1,11 +1,11 @@
-import { BaseError } from './base.error.js';
+import { SDKError, ErrorCode } from './base.error.js';
 
 /**
  * Error thrown when batch relay operations fail
  */
-export class BatchRelayError extends BaseError {
+export class BatchRelayError extends SDKError {
   constructor(message: string, details?: Record<string, unknown>) {
-    super('BatchRelayError', message, details);
+    super(message, ErrorCode.OPERATION_FAILED, details);
   }
 
   static invalidBatchSize(expected: number, actual: number): BatchRelayError {

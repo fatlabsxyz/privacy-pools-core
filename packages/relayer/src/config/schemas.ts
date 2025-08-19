@@ -57,6 +57,8 @@ export const zChainConfig = z.object({
   fee_receiver_address: zAddress.optional(),
   signer_private_key: zPkey.optional(),
   entrypoint_address: zAddress.optional(),
+  batch_relayer_address: zAddress.optional(),
+  max_batch_relay_fee_bps: zFeeBps.optional(),
   supported_assets: z.array(zAssetConfig).optional(),
   native_currency: zNativeCurrency.optional(),
 });
@@ -73,6 +75,8 @@ export const zDefaultConfig = z.object({
   fee_receiver_address: zAddress,
   signer_private_key: zPkey,
   entrypoint_address: zAddress,
+  batch_relayer_address: zAddress.optional(),
+  max_batch_relay_fee_bps: zFeeBps.optional(),
 });
 
 // Complete configuration schema

@@ -123,5 +123,37 @@ export function getAssetConfig(chainId: number, assetAddress: string): AssetConf
   );
 }
 
+/**
+ * Gets the batch relayer address for a specific chain.
+ * 
+ * @param {number} chainId - The chain ID
+ * @returns {string} The batch relayer address
+ * @throws {ConfigError} If batch relayer is not configured
+ */
+export function getBatchRelayerAddress(chainId: number): string {
+  const chainConfig = getChainConfig(chainId);
+  const address = chainConfig.batch_relayer_address || CONFIG.defaults.batch_relayer_address;
+
+  if (!address) {
+    throw ConfigError.default(`Batch relayer address not configured for chain ${chainId}`);
+  }
+
+  return address;
+}
+
+/**
+ * Gets the maximum relay fee BPS for batch operations.
+ * 
+ * @param {number} chainId - The chain ID
+ * @returns {bigint} The maximum relay fee in basis points
+ */
+export function getMaxRelayFeeBPS(chainId: number): bigint {
+  const chainConfig = getChainConfig(chainId);
+  const maxFee = chainConfig.max_batch_relay_fee_bps ?? CONFIG.defaults.max_batch_relay_fee_bps;
+
+  // Default to 10% if not configured
+  return maxFee ?? 1000n;
+}
+
 // Re-export types
 export * from "./types.js"; 

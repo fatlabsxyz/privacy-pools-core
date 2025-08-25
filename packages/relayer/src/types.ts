@@ -1,6 +1,7 @@
 import { Address } from "viem/accounts";
 import { RelayerResponse } from "./interfaces/relayer/request.js";
 import { QuoteResponse } from "./interfaces/relayer/quote.js";
+import { BatchRelayQuoteResponse, BatchRelayResponse } from "./interfaces/relayer/batchRequest.js";
 
 export abstract class RelayerMarshall {
   abstract toJSON(): object;
@@ -35,6 +36,30 @@ export class DetailsMarshall extends RelayerMarshall {
       minWithdrawAmount: this.details.minWithdrawAmount?.toString(),
       maxGasPrice
     };
+  }
+}
+
+export class BatchQuoteMarshall extends RelayerMarshall {
+  constructor(readonly response: BatchRelayQuoteResponse) {
+    super();
+  }
+  override toJSON(): object {
+    return {
+      relayFeeBPS: this.response.relayFeeBPS,
+      estimatedFee: this.response.estimatedFee,
+      estimatedGas: this.response.estimatedGas,
+      expiresAt: this.response.expiresAt,
+      feeCommitment: this.response.feeCommitment
+    };
+  }
+}
+
+export class BatchRequestMarshall extends RelayerMarshall {
+  constructor(readonly response: RelayerResponse) {
+    super();
+  }
+  override toJSON(): object {
+    return this.response;
   }
 }
 

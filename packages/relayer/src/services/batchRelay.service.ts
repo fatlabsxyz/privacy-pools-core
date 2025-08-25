@@ -28,6 +28,12 @@ import { RelayerDatabase } from "../types/db.types.js";
 import { SdkProviderInterface } from "../types/sdk.types.js";
 import { Web3Provider } from "../providers/web3.provider.js";
 
+// Gas costs for batch relay operations
+const BATCH_RELAY_BASE_GAS = 100000n; // Base gas for batch relay function call
+const GAS_PER_PROOF_VERIFICATION = 250000n; // Gas per proof verification
+const GAS_PER_WITHDRAWAL_EXECUTION = 50000n; // Gas per withdrawal execution
+const GAS_BUFFER_PERCENTAGE = 20n; // 20% buffer for gas estimation
+
 /**
  * Service for processing batch relay requests
  */
@@ -43,6 +49,60 @@ export class BatchRelayService {
     this.db = db;
     this.sdkProvider = new SdkProvider();
     this.web3Provider = web3Provider;
+  }
+
+  /**
+   * Calculate the total gas needed for a batch relay operation
+   */
+  calculateBatchGas(batchSize: number): bigint {
+    const baseGas = BATCH_RELAY_BASE_GAS;
+    const proofGas = GAS_PER_PROOF_VERIFICATION * BigInt(batchSize);
+    const executionGas = GAS_PER_WITHDRAWAL_EXECUTION * BigInt(batchSize);
+    const totalGas = baseGas + proofGas + executionGas;
+    
+    // Add buffer
+    return totalGas + (totalGas * GAS_BUFFER_PERCENTAGE) / 100n;
+  }
+
+  /**
+   * Calculate the fee in basis points needed to cover gas costs
+   * The fee must be the same BPS across all withdrawals in the batch
+   */
+  async calculateBatchFeeBPS(
+    chainId: number,
+    totalAmount: bigint,
+    batchSize: number,
+    baseFeeBPS: number
+  ): Promise<number> {
+    try {
+      // Get current gas price
+      const gasPrice = await this.web3Provider.getGasPrice(chainId);
+      
+      // Calculate total gas needed
+      const totalGasUnits = this.calculateBatchGas(batchSize);
+      
+      // Calculate gas cost in wei
+      const gasCostWei = totalGasUnits * gasPrice;
+      
+      // Calculate the BPS needed to cover gas costs
+      // gasCostWei = totalAmount * gasFeeBPS / 10000
+      // gasFeeBPS = (gasCostWei * 10000) / totalAmount
+      const gasFeeBPS = (gasCostWei * 10000n) / totalAmount;
+      
+      // Add base fee BPS (relayer profit)
+      const totalFeeBPS = BigInt(baseFeeBPS) + gasFeeBPS;
+      
+      // Ensure we don't exceed maximum (e.g., 10% = 1000 BPS)
+      const MAX_FEE_BPS = 1000n;
+      if (totalFeeBPS > MAX_FEE_BPS) {
+        throw new Error(`Required fee ${totalFeeBPS} BPS exceeds maximum ${MAX_FEE_BPS} BPS`);
+      }
+      
+      return Number(totalFeeBPS);
+    } catch (error) {
+      console.error("Error calculating batch fee BPS:", error);
+      throw error;
+    }
   }
 
   /**

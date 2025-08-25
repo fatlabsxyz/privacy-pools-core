@@ -3,6 +3,8 @@ import { ValidationError } from "../../exceptions/base.exception.js";
 import { validateDetailsQuerystring } from "../../schemes/relayer/details.scheme.js";
 import { validateRelayRequestBody } from "../../schemes/relayer/request.scheme.js";
 import { validateQuoteBody } from "../../schemes/relayer/quote.scheme.js";
+import { validateBatchRelayRequestBody } from "../../schemes/relayer/batchRequest.scheme.js";
+import { validateBatchRelayQuoteBody } from "../../schemes/relayer/batchQuote.scheme.js";
 
 // Middleware to validate the details querying
 export function validateDetailsMiddleware(
@@ -47,6 +49,38 @@ export function validateQuoteMiddleware(
   if (!isValid) {
     const messages: string[] = [];
     validateQuoteBody.errors?.forEach(e => e?.message ? messages.push(e.message) : undefined);
+    next(ValidationError.invalidInput({ message: messages.join("\n") }));
+    return;
+  }
+  next();
+}
+
+// Middleware to validate batch relay request
+export function validateBatchRelayRequestMiddleware(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  const isValid = validateBatchRelayRequestBody(req.body);
+  if (!isValid) {
+    const messages: string[] = [];
+    validateBatchRelayRequestBody.errors?.forEach(e => e?.message ? messages.push(e.message) : undefined);
+    next(ValidationError.invalidInput({ message: messages.join("\n") }));
+    return;
+  }
+  next();
+}
+
+// Middleware to validate batch relay quote
+export function validateBatchRelayQuoteMiddleware(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  const isValid = validateBatchRelayQuoteBody(req.body);
+  if (!isValid) {
+    const messages: string[] = [];
+    validateBatchRelayQuoteBody.errors?.forEach(e => e?.message ? messages.push(e.message) : undefined);
     next(ValidationError.invalidInput({ message: messages.join("\n") }));
     return;
   }

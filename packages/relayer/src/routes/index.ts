@@ -3,11 +3,15 @@ import {
   relayerDetailsHandler,
   relayQuoteHandler,
   relayRequestHandler,
+  batchRelayQuoteHandler,
+  batchRelayRequestHandler,
 } from "../handlers/index.js";
 import {
   validateDetailsMiddleware,
   validateQuoteMiddleware,
-  validateRelayRequestMiddleware
+  validateRelayRequestMiddleware,
+  validateBatchRelayRequestMiddleware,
+  validateBatchRelayQuoteMiddleware,
 } from "../middlewares/relayer/request.js";
 
 // Router setup
@@ -26,6 +30,16 @@ relayerRouter.post("/request", [
 relayerRouter.post("/quote", [
   validateQuoteMiddleware,
   relayQuoteHandler
+]);
+
+relayerRouter.post("/batch/request", [
+  validateBatchRelayRequestMiddleware,
+  batchRelayRequestHandler,
+]);
+
+relayerRouter.post("/batch/quote", [
+  validateBatchRelayQuoteMiddleware,
+  batchRelayQuoteHandler,
 ]);
 
 

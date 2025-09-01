@@ -9,7 +9,6 @@ import { web3Provider } from "../../providers/index.js";
 import { zRelayRequest } from "../../schemes/relayer/request.scheme.js";
 import { privacyPoolRelayer } from "../../services/index.js";
 import { RequestMashall } from "../../types.js";
-import { getAddress } from "viem";
 
 /**
  * Converts a RelayRequestBody into a WithdrawalPayload.

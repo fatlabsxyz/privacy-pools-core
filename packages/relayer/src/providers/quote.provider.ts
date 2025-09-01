@@ -24,7 +24,7 @@ export class QuoteProvider {
 
   private quoteNativeTokenInWoeth(chainId: number, addressIn: string, amountIn: bigint): { num: bigint; den: bigint; path: (string | number)[]; } | PromiseLike<{ num: bigint; den: bigint; path: (string | number)[]; }> {
     // Here we assume 1 WOETH ~ 1.20 ETH
-    return { num: amountIn * 10n, den: amountIn * 12n , path: [] };
+    return { num: amountIn, den: (amountIn * 12n) / 10n, path: [] };
   }
 
   async quoteNativeTokenInERC20(chainId: number, addressIn: Address, amountIn: bigint): Promise<{ num: bigint, den: bigint, path: (string | number)[]; }> {

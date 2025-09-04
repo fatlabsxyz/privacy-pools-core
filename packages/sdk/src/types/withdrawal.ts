@@ -36,19 +36,20 @@ export interface WithdrawalProofInput {
  * BatchRelayData struct that gets encoded in withdrawal.data for batch withdrawals
  */
 export interface BatchRelayData {
-  readonly recipient: Address;      // final receiver of funds
-  readonly feeRecipient: Address;   // fee receiver (relayer)
-  readonly relayFeeBPS: bigint;     // fee in basis points
-  readonly batchSize: number;       // number of withdrawals expected (uint8)
+  readonly recipient: Address; // final receiver of funds
+  readonly feeRecipient: Address; // fee receiver (relayer)
+  readonly relayFeeBPS: bigint; // fee in basis points
+  readonly batchSize: number; // number of withdrawals expected (uint8)
+  readonly totalValue: bigint; // total value of all withdrawals in the batch
 }
 
 /**
  * Batch withdrawal payload for SDK methods
  */
 export interface BatchWithdrawalPayload {
-  readonly withdrawal: Withdrawal;           // Standard withdrawal with processooor = BatchRelayer
-  readonly proofs: WithdrawalProof[];       // Array of proofs for each note
-  readonly poolAddress: Address;            // The privacy pool to withdraw from
+  readonly withdrawal: Withdrawal; // Standard withdrawal with processooor = BatchRelayer
+  readonly proofs: WithdrawalProof[]; // Array of proofs for each note
+  readonly poolAddress: Address; // The privacy pool to withdraw from
 }
 
 /**

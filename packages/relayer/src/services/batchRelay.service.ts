@@ -3,11 +3,15 @@
  */
 import crypto from "crypto";
 import { getAddress } from "viem";
-import { WithdrawalProof } from "@0xbow/privacy-pools-core-sdk";
-import { 
-  decodeBatchRelayData, 
-  calculateBatchFees 
-} from "../utils/batchRelayEncoder.js";
+import {
+  WithdrawalProof,
+  BatchWithdrawalService,
+  BatchRelayError,
+  decodeBatchRelayData,
+  validateBatchRelayData,
+  calculateBatchFees,
+  type BatchWithdrawalPayload as SdkBatchWithdrawalPayload
+} from "@0xbow/privacy-pools-core-sdk";
 import {
   getBatchRelayerAddress,
   getFeeReceiverAddress,
@@ -20,7 +24,7 @@ import {
   BlockchainError,
   ErrorCode,
 } from "../exceptions/base.exception.js";
-import { BatchWithdrawalPayload } from "../interfaces/relayer/batchRequest.js";
+import { BatchWithdrawalPayload, ContractWithdrawProof } from "../interfaces/relayer/batchRequest.js";
 import { RelayerResponse } from "../interfaces/relayer/request.js";
 import { web3Provider, SdkProvider, db } from "../providers/index.js";
 import { parseSignals } from "../utils.js";
@@ -59,9 +63,10 @@ export class BatchRelayService {
     const proofGas = GAS_PER_PROOF_VERIFICATION * BigInt(batchSize);
     const executionGas = GAS_PER_WITHDRAWAL_EXECUTION * BigInt(batchSize);
     const totalGas = baseGas + proofGas + executionGas;
-    
+
     // Add buffer
-    return totalGas + (totalGas * GAS_BUFFER_PERCENTAGE) / 100n;
+    const finalGas = totalGas + (totalGas * GAS_BUFFER_PERCENTAGE) / 100n;
+    return finalGas;
   }
 
   /**
@@ -77,27 +82,27 @@ export class BatchRelayService {
     try {
       // Get current gas price
       const gasPrice = await this.web3Provider.getGasPrice(chainId);
-      
+
       // Calculate total gas needed
       const totalGasUnits = this.calculateBatchGas(batchSize);
-      
+
       // Calculate gas cost in wei
       const gasCostWei = totalGasUnits * gasPrice;
-      
+
       // Calculate the BPS needed to cover gas costs
       // gasCostWei = totalAmount * gasFeeBPS / 10000
       // gasFeeBPS = (gasCostWei * 10000) / totalAmount
       const gasFeeBPS = (gasCostWei * 10000n) / totalAmount;
-      
+
       // Add base fee BPS (relayer profit)
       const totalFeeBPS = BigInt(baseFeeBPS) + gasFeeBPS;
-      
+
       // Ensure we don't exceed maximum (e.g., 10% = 1000 BPS)
       const MAX_FEE_BPS = 1000n;
       if (totalFeeBPS > MAX_FEE_BPS) {
         throw new Error(`Required fee ${totalFeeBPS} BPS exceeds maximum ${MAX_FEE_BPS} BPS`);
       }
-      
+
       return Number(totalFeeBPS);
     } catch (error) {
       console.error("Error calculating batch fee BPS:", error);
@@ -114,11 +119,11 @@ export class BatchRelayService {
   ): Promise<RelayerResponse> {
     const requestId = crypto.randomUUID();
     const timestamp = Date.now();
-    
+
     try {
       // Store request in database (convert to standard withdrawal payload)
       const withdrawalPayload: any = {
-        proof: payload.proofs[0], // Store first proof for tracking
+        proof: payload.proofs, // Store first proof for tracking
         withdrawal: payload.withdrawal,
         scope: BigInt(0), // Batch doesn't use scope
         feeCommitment: payload.feeCommitment
@@ -133,7 +138,7 @@ export class BatchRelayService {
       await this.validateBatchWithdrawal(payload, chainId);
 
       // Verify all proofs
-      await this.verifyAllProofs(payload.proofs);
+      await this.verifyAllProofs(payload.originalProofs as WithdrawalProof[]);
 
       // Calculate amounts
       const amounts = this.calculateTotalAmounts(payload.proofs);
@@ -155,6 +160,7 @@ export class BatchRelayService {
         requestId,
       };
     } catch (error) {
+      console.error("Batch relay service error:", error);
       let errorMessage: string;
       if (error instanceof RelayerError) {
         errorMessage = error.toPrettyString();
@@ -163,7 +169,7 @@ export class BatchRelayService {
       }
 
       await this.db.updateFailedRequest(requestId, errorMessage);
-      
+
       return {
         success: false,
         error: errorMessage,
@@ -174,7 +180,7 @@ export class BatchRelayService {
   }
 
   /**
-   * Validate batch withdrawal parameters
+   * Validate batch withdrawal parameters using SDK validation
    */
   protected async validateBatchWithdrawal(
     payload: BatchWithdrawalPayload,
@@ -185,6 +191,16 @@ export class BatchRelayService {
 
     // Decode batch relay data
     const batchData = decodeBatchRelayData(payload.withdrawal.data);
+
+    // Use SDK validation
+    try {
+      validateBatchRelayData(batchData);
+    } catch (error) {
+      throw new WithdrawalValidationError(
+        `Invalid batch relay data: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        ErrorCode.INVALID_INPUT
+      );
+    }
 
     // Validate processooor is the batch relayer
     if (getAddress(payload.withdrawal.processooor) !== getAddress(batchRelayerAddress)) {
@@ -217,11 +233,30 @@ export class BatchRelayService {
       );
     }
 
-    // Validate all proofs have the same context (withdrawal hash)
+    // Validate all proofs have exactly 8 public signals and the same context (withdrawal hash)
     if (payload.proofs.length > 0) {
-      const firstContext = payload.proofs[0]?.publicSignals[3];
+      // Validate first proof has exactly 8 public signals (required by contract)
+      const firstProof = payload.proofs[0];
+      if (firstProof && firstProof.pubSignals.length !== 8) {
+        throw new WithdrawalValidationError(
+          `First proof must have exactly 8 public signals, got ${firstProof.pubSignals.length}`,
+          ErrorCode.INVALID_PROOF
+        );
+      }
+
+      const firstContext = firstProof?.pubSignals[7]; // context is at index 7 based on circuit
       for (let i = 1; i < payload.proofs.length; i++) {
-        const currentContext = payload.proofs[i]?.publicSignals[3];
+        const currentProof = payload.proofs[i];
+        // Validate each proof has exactly 8 public signals (required by contract)
+        if (currentProof && currentProof.pubSignals.length !== 8) {
+          throw new WithdrawalValidationError(
+            `Proof at index ${i} must have exactly 8 public signals, got ${currentProof.pubSignals.length}`,
+            ErrorCode.INVALID_PROOF
+          );
+        }
+
+        const currentContext = currentProof?.pubSignals[7];
+
         if (currentContext !== firstContext) {
           throw new WithdrawalValidationError(
             `Proof at index ${i} has different withdrawal context`,
@@ -269,13 +304,14 @@ export class BatchRelayService {
   /**
    * Calculate total withdrawal amounts from proofs
    */
-  protected calculateTotalAmounts(proofs: WithdrawalProof[]): {
+  protected calculateTotalAmounts(proofs: ContractWithdrawProof[]): {
     totalAmount: bigint;
   } {
     let totalAmount = 0n;
 
     for (const proof of proofs) {
-      const signals = parseSignals(proof.publicSignals);
+      // ContractWithdrawProof uses pubSignals instead of publicSignals
+      const signals = parseSignals(proof.pubSignals);
       const amount = signals.withdrawnValue;
       totalAmount += amount;
     }
@@ -292,25 +328,17 @@ export class BatchRelayService {
     totalAmount: bigint
   ): Promise<string> {
     try {
-      const batchRelayerAddress = getBatchRelayerAddress(chainId);
-      const poolAddress = payload.poolAddress;
-      
-      // Execute batch relay through SDK
+      const batchRelayerAddress = getAddress(getBatchRelayerAddress(chainId));
+
+
+      // Delegate contract execution to SDK with already-proven payload
       const result = await this.sdkProvider.executeBatchRelay(
         batchRelayerAddress,
-        poolAddress,
-        payload.withdrawal,
-        payload.proofs,
-        chainId
+        payload
       );
 
-      console.log("Batch relay broadcasted", {
-        txHash: result.txHash,
-        totalAmount: totalAmount.toString(),
-        fee: result.fee.toString(),
-      });
 
-      return result.txHash;
+      return result.transactionHash;
     } catch (error) {
       console.error("Failed to broadcast batch relay", { error });
       throw BlockchainError.transactionFailed(

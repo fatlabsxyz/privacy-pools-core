@@ -3,6 +3,7 @@ import { getAddress } from "viem";
 import {
   BatchRelayRequestBody,
   BatchWithdrawalPayload,
+  ContractWithdrawProof,
 } from "../../interfaces/relayer/batchRequest.js";
 import { RelayerResponse } from "../../interfaces/relayer/request.js";
 import { ValidationError, ConfigError } from "../../exceptions/base.exception.js";
@@ -10,7 +11,6 @@ import { getChainConfig } from "../../config/index.js";
 import { web3Provider } from "../../providers/index.js";
 import { batchRelayService } from "../../services/index.js";
 import { BatchRequestMarshall } from "../../types.js";
-import { WithdrawalProof } from "@0xbow/privacy-pools-core-sdk";
 
 /**
  * Parses and validates the batch withdrawal request body.
@@ -53,17 +53,37 @@ function parseBatchWithdrawal(body: Request["body"]): { payload: BatchWithdrawal
     });
   }
   
-  // Convert proofs to SDK format
-  const sdkProofs: WithdrawalProof[] = batchBody.proofs.map(proof => ({
-    proof: {
-      pi_a: proof.proof.pi_a,
-      pi_b: proof.proof.pi_b,
-      pi_c: proof.proof.pi_c,
-      protocol: "groth16",
-      curve: "bn128",
-    },
-    publicSignals: proof.publicSignals
-  }));
+  // Convert proofs to match ProofLib.WithdrawProof structure EXACTLY
+  const contractProofs: ContractWithdrawProof[] = batchBody.proofs.map((proof, index) => {
+    
+    // Validate we have exactly 8 public signals (required by contract)
+    if (!proof || !proof.publicSignals || proof.publicSignals.length !== 8) {
+      throw ValidationError.invalidInput({
+        message: `Proof must have exactly 8 public signals, got ${proof?.publicSignals?.length || 'undefined'}`
+      });
+    }
+
+    return {
+      // Contract expects pA, pB, pC (NOT pi_a, pi_b, pi_c)
+      pA: [proof.proof.pi_a?.[0] || '0', proof.proof.pi_a?.[1] || '0'] as [string, string],
+      pB: [
+        [proof.proof.pi_b?.[0]?.[0] || '0', proof.proof.pi_b?.[0]?.[1] || '0'], 
+        [proof.proof.pi_b?.[1]?.[0] || '0', proof.proof.pi_b?.[1]?.[1] || '0']
+      ] as [[string, string], [string, string]],
+      pC: [proof.proof.pi_c?.[0] || '0', proof.proof.pi_c?.[1] || '0'] as [string, string],
+      // Contract expects exactly uint256[8] pubSignals
+      pubSignals: [
+        proof.publicSignals[0], // newCommitmentHash
+        proof.publicSignals[1], // existingNullifierHash  
+        proof.publicSignals[2], // withdrawnValue
+        proof.publicSignals[3], // stateRoot
+        proof.publicSignals[4], // stateTreeDepth
+        proof.publicSignals[5], // ASPRoot
+        proof.publicSignals[6], // ASPTreeDepth
+        proof.publicSignals[7]  // context
+      ] as [string, string, string, string, string, string, string, string]
+    };
+  });
   
   // Build the batch withdrawal payload
   const payload: BatchWithdrawalPayload = {
@@ -71,7 +91,8 @@ function parseBatchWithdrawal(body: Request["body"]): { payload: BatchWithdrawal
       processooor: getAddress(batchBody.withdrawal.processooor),
       data: batchBody.withdrawal.data as `0x${string}`,
     },
-    proofs: sdkProofs,
+    proofs: contractProofs,
+    originalProofs: batchBody.proofs, // Keep original proofs for verification
     poolAddress: getAddress(batchBody.poolAddress),
     feeCommitment: batchBody.feeCommitment
   };
@@ -109,6 +130,7 @@ export async function batchRelayRequestHandler(
       .json(res.locals.marshalResponse(new BatchRequestMarshall(requestResponse)));
     next();
   } catch (error) {
+    console.error("Batch request error:", error);
     next(error);
   }
 }

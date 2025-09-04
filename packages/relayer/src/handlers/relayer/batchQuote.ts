@@ -88,7 +88,8 @@ export async function batchRelayQuoteHandler(
         recipient,
         feeRecipient: getAddress(feeReceiverAddress),
         relayFeeBPS: BigInt(feeBPS),
-        batchSize
+        batchSize,
+        totalValue: totalAmount  // Use the requested total amount
       });
       
       const relayerCommitment = { 
@@ -113,6 +114,7 @@ export async function batchRelayQuoteHandler(
       .json(res.locals.marshalResponse(new BatchQuoteMarshall(response)));
     
   } catch (error) {
+    console.error("Batch quote handler error:", error);
     next(error);
   }
 }

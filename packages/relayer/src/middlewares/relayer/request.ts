@@ -80,7 +80,7 @@ export function validateBatchRelayQuoteMiddleware(
   const isValid = validateBatchRelayQuoteBody(req.body);
   if (!isValid) {
     const messages: string[] = [];
-    validateBatchRelayQuoteBody.errors?.forEach(e => e?.message ? messages.push(e.message) : undefined);
+    validateBatchRelayQuoteBody.errors?.forEach((e: any) => e?.message ? messages.push(e.message) : undefined);
     next(ValidationError.invalidInput({ message: messages.join("\n") }));
     return;
   }

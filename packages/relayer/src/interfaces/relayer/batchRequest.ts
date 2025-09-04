@@ -1,9 +1,16 @@
 import {
   Withdrawal as SdkWithdrawal,
-  WithdrawalProof,
 } from "@0xbow/privacy-pools-core-sdk";
 import { FeeCommitment } from "./common.js";
 import { ProofRelayerPayload } from "./request.js";
+
+// Contract-compatible proof structure that matches ProofLib.WithdrawProof exactly
+export interface ContractWithdrawProof {
+  pA: [string, string];                    // uint256[2] pA
+  pB: [[string, string], [string, string]]; // uint256[2][2] pB  
+  pC: [string, string];                    // uint256[2] pC
+  pubSignals: [string, string, string, string, string, string, string, string]; // uint256[8] pubSignals
+}
 
 /**
  * Represents the request body for a batch relay operation.
@@ -29,10 +36,15 @@ export interface BatchRelayRequestBody {
 
 /**
  * Complete batch withdrawal payload for internal processing
+ * Uses contract-compatible proof structure
  */
 export interface BatchWithdrawalPayload {
   readonly withdrawal: SdkWithdrawal;
-  readonly proofs: WithdrawalProof[];
+  readonly proofs: ContractWithdrawProof[];  // Contract-compatible proofs for blockchain
+  readonly originalProofs: Array<{  // Original proofs for verification
+    publicSignals: string[];
+    proof: ProofRelayerPayload;
+  }>;
   readonly poolAddress: string;
   readonly feeCommitment?: FeeCommitment;
 }
@@ -69,6 +81,8 @@ export interface BatchRelayQuoteRequest {
   totalAmount: string;
   /** Chain ID */
   chainId: string | number;
+  /** Optional recipient address for fee commitment generation */
+  recipient?: string;
   /** Optional fee commitment for pre-negotiated fees */
   feeCommitment?: FeeCommitment;
 }

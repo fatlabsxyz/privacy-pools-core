@@ -2,17 +2,19 @@ import { encodeAbiParameters, decodeAbiParameters, type Address, type Hex } from
 
 /**
  * Interface for batch relay data
+ * MUST match the BatchRelayData struct in BatchRelayer.sol
  */
 export interface BatchRelayData {
   recipient: Address;
   feeRecipient: Address;
   relayFeeBPS: bigint;
   batchSize: number;
+  totalValue: bigint;
 }
 
 /**
  * Encodes batch relay data for use in withdrawal.data field
- * @param data Batch relay data containing recipient, fee recipient, relay fee BPS, and batch size
+ * @param data Batch relay data containing recipient, fee recipient, relay fee BPS, batch size, and total value
  * @returns Encoded hex string
  */
 export function encodeBatchRelayData(data: BatchRelayData): Hex {
@@ -21,13 +23,15 @@ export function encodeBatchRelayData(data: BatchRelayData): Hex {
       { name: 'recipient', type: 'address' },
       { name: 'feeRecipient', type: 'address' },
       { name: 'relayFeeBPS', type: 'uint256' },
-      { name: 'batchSize', type: 'uint8' }
+      { name: 'batchSize', type: 'uint8' },
+      { name: 'totalValue', type: 'uint256' }
     ],
     [
       data.recipient,
       data.feeRecipient,
       data.relayFeeBPS,
-      data.batchSize
+      data.batchSize,
+      data.totalValue
     ]
   );
 }
@@ -43,7 +47,8 @@ export function decodeBatchRelayData(encodedData: Hex | string): BatchRelayData 
       { name: 'recipient', type: 'address' },
       { name: 'feeRecipient', type: 'address' },
       { name: 'relayFeeBPS', type: 'uint256' },
-      { name: 'batchSize', type: 'uint8' }
+      { name: 'batchSize', type: 'uint8' },
+      { name: 'totalValue', type: 'uint256' }
     ],
     encodedData as Hex
   );
@@ -52,7 +57,8 @@ export function decodeBatchRelayData(encodedData: Hex | string): BatchRelayData 
     recipient: decoded[0] as Address,
     feeRecipient: decoded[1] as Address,
     relayFeeBPS: decoded[2] as bigint,
-    batchSize: Number(decoded[3])
+    batchSize: Number(decoded[3]),
+    totalValue: decoded[4] as bigint
   };
 }
 

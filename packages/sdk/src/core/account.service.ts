@@ -24,11 +24,11 @@ import { EventError } from "../errors/events.error.js";
 
 type AccountServiceConfig =
   | {
-    mnemonic: string;
-  }
+      mnemonic: string;
+    }
   | {
-    account: PrivacyPoolAccount;
-  };
+      account: PrivacyPoolAccount;
+    };
 
 /**
  * Service responsible for managing privacy pool accounts and their associated commitments.
@@ -54,7 +54,7 @@ export class AccountService {
    */
   constructor(
     private readonly dataService: DataService,
-    config: AccountServiceConfig
+    config: AccountServiceConfig,
   ) {
     this.logger = new Logger({ prefix: "Account" });
     if ("mnemonic" in config) {
@@ -84,11 +84,11 @@ export class AccountService {
       this.logger.debug("Initializing account with mnemonic");
 
       const masterNullifierSeed = bytesToNumber(
-        mnemonicToAccount(mnemonic, { accountIndex: 0 }).getHdKey().privateKey!
+        mnemonicToAccount(mnemonic, { accountIndex: 0 }).getHdKey().privateKey!,
       );
 
       const masterSecretSeed = bytesToNumber(
-        mnemonicToAccount(mnemonic, { accountIndex: 1 }).getHdKey().privateKey!
+        mnemonicToAccount(mnemonic, { accountIndex: 1 }).getHdKey().privateKey!,
       );
 
       const masterNullifier = poseidon([BigInt(masterNullifierSeed)]) as Secret;
@@ -102,7 +102,7 @@ export class AccountService {
       };
     } catch (error) {
       throw AccountError.accountInitializationFailed(
-        error instanceof Error ? error.message : "Unknown error"
+        error instanceof Error ? error.message : "Unknown error",
       );
     }
   }
@@ -171,7 +171,7 @@ export class AccountService {
   private _hashCommitment(
     value: bigint,
     label: Hash,
-    precommitment: Hash
+    precommitment: Hash,
   ): Hash {
     return poseidon([value, label, precommitment]) as Hash;
   }
@@ -240,7 +240,7 @@ export class AccountService {
    */
   public createDepositSecrets(
     scope: Hash,
-    index?: bigint
+    index?: bigint,
   ): {
     nullifier: Secret;
     secret: Secret;
@@ -321,7 +321,7 @@ export class AccountService {
     secret: Secret,
     label: Hash,
     blockNumber: bigint,
-    txHash: Hex
+    txHash: Hex,
   ): PoolAccount {
     const precommitment = this._hashPrecommitment(nullifier, secret);
     const commitment = this._hashCommitment(value, label, precommitment);
@@ -347,7 +347,7 @@ export class AccountService {
     this.account.poolAccounts.get(scope)!.push(newAccount);
 
     this.logger.info(
-      `Added new pool account with value ${value} and label ${label}`
+      `Added new pool account with value ${value} and label ${label}`,
     );
 
     return newAccount;
@@ -377,7 +377,7 @@ export class AccountService {
     nullifier: Secret,
     secret: Secret,
     blockNumber: bigint,
-    txHash: Hex
+    txHash: Hex,
   ): AccountCommitment {
     let foundAccount: PoolAccount | undefined;
     let foundScope: bigint | undefined;
@@ -386,7 +386,7 @@ export class AccountService {
       foundAccount = accounts.find((account) => {
         if (account.deposit.hash === parentCommitment.hash) return true;
         return account.children.some(
-          (child) => child.hash === parentCommitment.hash
+          (child) => child.hash === parentCommitment.hash,
         );
       });
 
@@ -414,7 +414,7 @@ export class AccountService {
     foundAccount.children.push(newCommitment);
 
     this.logger.info(
-      `Added new commitment with value ${value} to account with label ${parentCommitment.label}`
+      `Added new commitment with value ${value} to account with label ${parentCommitment.label}`,
     );
 
     return newCommitment;
@@ -436,7 +436,7 @@ export class AccountService {
    */
   public addRagequitToAccount(
     label: Hash,
-    ragequit: RagequitEvent
+    ragequit: RagequitEvent,
   ): PoolAccount {
     let foundAccount: PoolAccount | undefined;
     let foundScope: Hash | undefined;
@@ -453,7 +453,7 @@ export class AccountService {
     if (!foundAccount || !foundScope) {
       throw new AccountError(
         `No account found with label ${label}`,
-        ErrorCode.INVALID_INPUT
+        ErrorCode.INVALID_INPUT,
       );
     }
 
@@ -461,7 +461,7 @@ export class AccountService {
     foundAccount.ragequit = ragequit;
 
     this.logger.info(
-      `Added ragequit event to account with label ${label}, value ${ragequit.value}`
+      `Added ragequit event to account with label ${label}, value ${ragequit.value}`,
     );
 
     return foundAccount;
@@ -475,7 +475,7 @@ export class AccountService {
    * @returns A map of precommitments to their events
    */
   public async getDepositEvents(
-    pool: PoolInfo
+    pool: PoolInfo,
   ): Promise<Map<Hash, DepositEvent>> {
     try {
       const depositEvents = await this.dataService.getDeposits(pool);
@@ -496,7 +496,7 @@ export class AccountService {
       throw EventError.depositEventError(
         pool.chainId,
         pool.scope,
-        error as Error
+        error as Error,
       );
     }
   }
@@ -509,7 +509,7 @@ export class AccountService {
    * @returns A map of spent nullifiers to their events
    */
   public async getWithdrawalEvents(
-    pool: PoolInfo
+    pool: PoolInfo,
   ): Promise<Map<Hash, WithdrawalEvent>> {
     try {
       const withdrawalEvents = await this.dataService.getWithdrawals(pool);
@@ -523,7 +523,7 @@ export class AccountService {
       throw EventError.withdrawalEventError(
         pool.chainId,
         pool.scope,
-        error as Error
+        error as Error,
       );
     }
   }
@@ -536,7 +536,7 @@ export class AccountService {
    * @returns A map of ragequit labels to their events
    */
   public async getRagequitEvents(
-    pool: PoolInfo
+    pool: PoolInfo,
   ): Promise<Map<Hash, RagequitEvent>> {
     try {
       const ragequitEvents = await this.dataService.getRagequits(pool);
@@ -550,7 +550,7 @@ export class AccountService {
       throw EventError.ragequitEventError(
         pool.chainId,
         pool.scope,
-        error as Error
+        error as Error,
       );
     }
   }
@@ -586,7 +586,7 @@ export class AccountService {
           withdrawalEvents,
           ragequitEvents,
         };
-      })
+      }),
     );
 
     for (const result of poolEventResults) {
@@ -619,13 +619,13 @@ export class AccountService {
    */
   private _processDepositEvents(
     scope: Hash,
-    depositEvents: Map<Hash, DepositEvent>
+    depositEvents: Map<Hash, DepositEvent>,
   ): void {
     for (let index = BigInt(0); index < depositEvents.size; index++) {
       // Generate nullifier, secret, and precommitment for this index
       const { nullifier, secret, precommitment } = this.createDepositSecrets(
         scope,
-        index
+        index,
       );
 
       // Look for a deposit with this precommitment
@@ -643,7 +643,7 @@ export class AccountService {
         secret,
         event.label,
         event.blockNumber,
-        event.transactionHash
+        event.transactionHash,
       );
     }
   }
@@ -668,7 +668,7 @@ export class AccountService {
    */
   private _processWithdrawalEvents(
     scope: Hash,
-    withdrawalEvents: Map<Hash, WithdrawalEvent>
+    withdrawalEvents: Map<Hash, WithdrawalEvent>,
   ): void {
     const accounts = this.account.poolAccounts.get(scope);
 
@@ -708,7 +708,7 @@ export class AccountService {
           nullifier,
           secret,
           withdrawal.blockNumber,
-          withdrawal.transactionHash
+          withdrawal.transactionHash,
         );
 
         // Update current commitment to the newly created one
@@ -736,7 +736,7 @@ export class AccountService {
    */
   private _processRagequitEvents(
     scope: Hash,
-    ragequitEvents: Map<Hash, RagequitEvent>
+    ragequitEvents: Map<Hash, RagequitEvent>,
   ): void {
     const accounts = this.account.poolAccounts.get(scope);
 
@@ -781,12 +781,12 @@ export class AccountService {
     dataService: DataService,
     source:
       | {
-        mnemonic: string;
-      }
+          mnemonic: string;
+        }
       | {
-        service: AccountService;
-      },
-    pools: PoolInfo[]
+          service: AccountService;
+        },
+    pools: PoolInfo[],
   ): Promise<{ account: AccountService; errors: PoolEventsError[] }> {
     // Log the start of the history retrieval process
     const logger = new Logger({ prefix: "Account" });
@@ -806,7 +806,7 @@ export class AccountService {
       dataService,
       "mnemonic" in source
         ? { mnemonic: source.mnemonic }
-        : { account: source.service.account }
+        : { account: source.service.account },
     );
 
     const events = await account.getEvents(pools);
@@ -863,14 +863,14 @@ export class AccountService {
       pools.map(async (pool) => {
         // Log which pool is being processed
         this.logger.info(
-          `Processing pool ${pool.address} on chain ${pool.chainId} from block ${pool.deploymentBlock}`
+          `Processing pool ${pool.address} on chain ${pool.chainId} from block ${pool.deploymentBlock}`,
         );
 
         // Fetch all deposit events for this pool
         const deposits = await this.dataService.getDeposits(pool);
 
         this.logger.info(
-          `Found ${deposits.length} deposits for pool ${pool.address}`
+          `Found ${deposits.length} deposits for pool ${pool.address}`,
         );
 
         // Create a map of deposits by precommitment for efficient lookup
@@ -918,7 +918,7 @@ export class AccountService {
             secret,
             deposit.label,
             deposit.blockNumber,
-            deposit.transactionHash
+            deposit.transactionHash,
           );
 
           // Track the found deposit
@@ -931,15 +931,15 @@ export class AccountService {
         // If no accounts were found for this scope, log and skip further processing
         if (this.account.poolAccounts.get(pool.scope)!.length === 0) {
           this.logger.info(
-            `No Pool Accounts were found for scope ${pool.scope}`
+            `No Pool Accounts were found for scope ${pool.scope}`,
           );
           return;
         }
 
         this.logger.info(
-          `Found ${foundDeposits.length} deposits for pool ${pool.address}`
+          `Found ${foundDeposits.length} deposits for pool ${pool.address}`,
         );
-      })
+      }),
     );
 
     // Process withdrawals and ragequits for all pools
@@ -967,7 +967,7 @@ export class AccountService {
    * @private
    */
   private async _processWithdrawalsAndRagequits(
-    pools: PoolInfo[]
+    pools: PoolInfo[],
   ): Promise<void> {
     await Promise.all(
       pools.map(async (pool) => {
@@ -976,7 +976,7 @@ export class AccountService {
         // Skip if no accounts for this scope
         if (!accounts || accounts.length === 0) {
           this.logger.info(
-            `No accounts found for pool ${pool.address} with scope ${pool.scope}`
+            `No accounts found for pool ${pool.address} with scope ${pool.scope}`,
           );
           return;
         }
@@ -992,15 +992,15 @@ export class AccountService {
         // Fetch withdrawal and ragequit events from the first deposit block
         const withdrawals = await this.dataService.getWithdrawals(
           pool,
-          firstDepositBlock
+          firstDepositBlock,
         );
         const ragequits = await this.dataService.getRagequits(
           pool,
-          firstDepositBlock
+          firstDepositBlock,
         );
 
         this.logger.info(
-          `Found ${withdrawals.length} withdrawals for pool ${pool.address}`
+          `Found ${withdrawals.length} withdrawals for pool ${pool.address}`,
         );
 
         if (withdrawals.length === 0 && ragequits.length === 0) {
@@ -1040,7 +1040,7 @@ export class AccountService {
             // Generate secret for this withdrawal
             const nullifier = this._genWithdrawalNullifier(
               account.label,
-              index
+              index,
             );
             const secret = this._genWithdrawalSecret(account.label, index);
 
@@ -1051,7 +1051,7 @@ export class AccountService {
               nullifier,
               secret,
               withdrawal.blockNumber,
-              withdrawal.transactionHash
+              withdrawal.transactionHash,
             );
 
             // Update current commitment to the newly created one
@@ -1066,7 +1066,7 @@ export class AccountService {
             this.addRagequitToAccount(account.label, ragequit);
           }
         }
-      })
+      }),
     );
   }
 }

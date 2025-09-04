@@ -24,7 +24,7 @@ export class WithdrawalService {
    */
   public async proveWithdrawal(
     commitment: Commitment | AccountCommitment,
-    input: WithdrawalProofInput
+    input: WithdrawalProofInput,
   ): Promise<WithdrawalProof> {
     try {
       const inputSignals = this.prepareInputSignals(commitment, input);
@@ -81,7 +81,7 @@ export class WithdrawalService {
    */
   private prepareInputSignals(
     commitment: Commitment | AccountCommitment,
-    input: WithdrawalProofInput
+    input: WithdrawalProofInput,
   ): Record<string, bigint | bigint[] | string> {
     let existingValue: bigint;
     let existingNullifier: bigint;

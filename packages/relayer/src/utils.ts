@@ -83,13 +83,13 @@ export function parseSignals(
  * @returns {Chain} - The Chain object
  */
 export function createChainObject(chainConfig: {
-  chain_id: number;
+  chain_id: string | number;
   chain_name: string;
   rpc_url: string;
   native_currency?: { name: string; symbol: string; decimals: number };
 }): Chain {
   return {
-    id: chainConfig.chain_id,
+    id: typeof chainConfig.chain_id === 'string' ? parseInt(chainConfig.chain_id, 10) : chainConfig.chain_id,
     name: chainConfig.chain_name,
     nativeCurrency: chainConfig.native_currency || {
       name: "Ether",

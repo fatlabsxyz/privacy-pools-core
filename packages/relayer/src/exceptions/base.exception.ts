@@ -304,6 +304,14 @@ export class WithdrawalValidationError extends RelayerError {
       { expected, actual }
     );
   }
+
+  public static contextMismatch(details: string) {
+    return new WithdrawalValidationError(
+      "Context mismatch between withdrawal and proof",
+      ErrorCode.CONTEXT_MISMATCH,
+      details,
+    );
+  }
 }
 
 export class SdkError extends RelayerError {

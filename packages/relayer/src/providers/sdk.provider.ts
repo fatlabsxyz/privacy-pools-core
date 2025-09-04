@@ -8,20 +8,26 @@ import {
   ContractInteractionsService,
   PrivacyPoolSDK,
   Withdrawal,
-  WithdrawalProof,
   SDKError,
   type Hash,
 } from "@0xbow/privacy-pools-core-sdk";
-import { Address } from "viem";
+import { Address, createPublicClient, createWalletClient, http } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+// BatchRelayer ABI is now available through the SDK
 import {
   CONFIG
 } from "../config/index.js";
 import { WithdrawalPayload } from "../interfaces/relayer/request.js";
+import { ContractWithdrawProof, BatchWithdrawalPayload } from "../interfaces/relayer/batchRequest.js";
 import { RelayerError, SdkError, ConfigError } from "../exceptions/base.exception.js";
 import { SdkProviderInterface } from "../types/sdk.types.js";
+import type { 
+  BatchRelayResult, 
+  BatchWithdrawalPayload as SdkBatchWithdrawalPayload,
+  WithdrawalProof
+} from "@0xbow/privacy-pools-core-sdk";
+import type { Groth16Proof, PublicSignals } from "snarkjs";
 import { createChainObject } from "../utils.js";
-// TODO: Import from @0xbow/privacy-pools-core-sdk once batch relay types are published
-import type { BatchRelayResult } from "../../../sdk/src/types/withdrawal.js";
 
 /**
  * Class representing the SDK provider for interacting with Privacy Pool SDK.
@@ -125,6 +131,38 @@ export class SdkProvider implements SdkProviderInterface {
   }
 
   /**
+   * Calculates the context for a withdrawal using the pool's actual scope.
+   * This matches the contract's context calculation: keccak256(abi.encode(_withdrawal, SCOPE)) % SNARK_SCALAR_FIELD
+   *
+   * @param {Withdrawal} withdrawal - The withdrawal object.
+   * @param {Address} poolAddress - The pool address to get the scope from.
+   * @param {number} chainId - The chain ID.
+   * @returns {Promise<string>} - The calculated context matching the contract.
+   */
+  async calculateContextForPool(
+    withdrawal: Withdrawal,
+    poolAddress: Address,
+    chainId: number
+  ): Promise<string> {
+    try {
+      const contracts = this.getContractsForChain(chainId);
+      
+      // Get the pool's SCOPE value from the contract
+      const poolScope = await contracts.getScope(poolAddress);
+      
+      // Calculate context using the same formula as the contract:
+      // keccak256(abi.encode(_withdrawal, SCOPE)) % SNARK_SCALAR_FIELD
+      return calculateContext(withdrawal, poolScope as Hash);
+    } catch (error) {
+      if (error instanceof SDKError) {
+        throw SdkError.scopeDataError(error);
+      } else {
+        throw RelayerError.unknown(JSON.stringify(error));
+      }
+    }
+  }
+
+  /**
    * Converts a scope value to an asset address.
    *
    * @param {bigint} scope - The scope value.
@@ -148,40 +186,100 @@ export class SdkProvider implements SdkProviderInterface {
     }
   }
 
+
   /**
-   * Executes a batch relay transaction.
+   * Converts relayer's ContractWithdrawProof to SDK's WithdrawalProof format
+   */
+  private convertContractProofToSdkProof(contractProof: ContractWithdrawProof): WithdrawalProof {
+    // Convert contract proof format (pA, pB, pC) to Groth16Proof format (pi_a, pi_b, pi_c)
+    const groth16Proof: Groth16Proof = {
+      pi_a: contractProof.pA,
+      pi_b: contractProof.pB,
+      pi_c: contractProof.pC,
+      protocol: "groth16",
+      curve: "bn128"
+    };
+
+    // PublicSignals are already strings, so use them directly
+    const publicSignals: PublicSignals = contractProof.pubSignals;
+
+    return {
+      proof: groth16Proof,
+      publicSignals
+    };
+  }
+
+  /**
+   * Converts relayer's BatchWithdrawalPayload to SDK's BatchWithdrawalPayload format
+   * NOTE: The SDK's formatProof method expects proofs with nested .proof structure
+   * We need to convert from the flattened relayer format to the nested SDK format
+   */
+  private convertToSdkPayload(payload: BatchWithdrawalPayload): SdkBatchWithdrawalPayload {
+    
+    if (!payload.proofs || !Array.isArray(payload.proofs)) {
+      throw new Error("Invalid payload: proofs must be an array");
+    }
+    
+    const convertedProofs = payload.proofs.map((proof, index) => {
+      
+      if (!proof) {
+        throw new Error(`Proof ${index + 1} is undefined`);
+      }
+      
+      if (!proof.pA || !proof.pB || !proof.pC || !proof.pubSignals) {
+        throw new Error(`Proof ${index + 1} is missing required fields: pA=${!!proof.pA}, pB=${!!proof.pB}, pC=${!!proof.pC}, pubSignals=${!!proof.pubSignals}`);
+      }
+      
+      // Convert from relayer's flattened format (pA, pB, pC, pubSignals) 
+      // to SDK's nested format (proof.pi_a, proof.pi_b, proof.pi_c, publicSignals)
+      return {
+        proof: {
+          pi_a: proof.pA,
+          pi_b: proof.pB,
+          pi_c: proof.pC,
+          protocol: "groth16" as const,
+          curve: "bn128" as const
+        },
+        publicSignals: proof.pubSignals
+      };
+    });
+    
+    return {
+      withdrawal: payload.withdrawal,
+      poolAddress: payload.poolAddress as Address,
+      proofs: convertedProofs
+    };
+  }
+
+  /**
+   * Executes a batch relay transaction using the SDK.
+   * Delegates contract execution to the SDK with already-proven payload.
    *
    * @param {Address} batchRelayerAddress - The address of the batch relayer contract.
-   * @param {Address} poolAddress - The address of the privacy pool.
-   * @param {Withdrawal} withdrawal - The withdrawal data.
-   * @param {WithdrawalProof[]} proofs - Array of withdrawal proofs.
-   * @param {number} chainId - The chain ID.
+   * @param {BatchWithdrawalPayload} payload - BatchWithdrawalPayload with proven proofs
    * @returns {Promise<BatchRelayResult>} - A promise resolving to the batch relay result.
    */
   async executeBatchRelay(
     batchRelayerAddress: Address,
-    poolAddress: Address,
-    withdrawal: Withdrawal,
-    proofs: WithdrawalProof[],
-    chainId: number,
+    payload: BatchWithdrawalPayload
   ): Promise<BatchRelayResult> {
     try {
-      const contracts = this.getContractsForChain(chainId);
-      const result = await contracts.batchRelay(
+      // Convert relayer payload to SDK payload format
+      const sdkPayload = this.convertToSdkPayload(payload);
+      
+      const result = await this.sdk.executeBatchWithdrawal(
         batchRelayerAddress,
-        poolAddress,
-        withdrawal,
-        proofs
+        sdkPayload
       );
       
-      // Map SDK result to relayer's BatchRelayResult interface
-      // SDK uses 'transactionHash' while relayer uses 'txHash'
-      return {
-        txHash: result.transactionHash,
-        totalAmount: result.totalAmount,
-        fee: result.fee,
-        amountAfterFees: result.amountAfterFees
-      };
+      if (!result) {
+        throw new Error("SDK batch withdrawal service returned undefined result");
+      }
+      
+      
+      // Return the SDK result directly - it already matches BatchRelayResult interface
+      return result;
+      
     } catch (error) {
       if (error instanceof SDKError) {
         throw SdkError.batchRelayError(error);

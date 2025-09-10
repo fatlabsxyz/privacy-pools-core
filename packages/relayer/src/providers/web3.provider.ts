@@ -10,6 +10,7 @@ import { FeeCommitment } from "../interfaces/relayer/common.js";
 interface IWeb3Provider {
   client(chainId: number): PublicClient;
   getGasPrice(chainId: number): Promise<bigint>;
+  estimateContractGas(chainId: number, contractAddress: string, functionName: string, args: readonly unknown[]): Promise<bigint>;
 }
 
 const domain = (chainId: number) => ({
@@ -86,6 +87,66 @@ export class Web3Provider implements IWeb3Provider {
       },
       signature: signedRelayerCommitment
     })
+  }
+
+  /**
+   * Estimate gas for a contract function call using the actual contract simulation.
+   * This provides real gas costs instead of hardcoded estimates.
+   * 
+   * @param chainId - The chain ID
+   * @param contractAddress - The contract address to call
+   * @param functionName - The function name to call
+   * @param args - The function arguments
+   * @returns Promise<bigint> - The estimated gas amount
+   */
+  async estimateContractGas(
+    chainId: number, 
+    contractAddress: string, 
+    functionName: string, 
+    args: readonly unknown[]
+  ): Promise<bigint> {
+    const client = this.client(chainId);
+    
+    // For BatchRelayer contract gas estimation, we need the ABI
+    // This is a simplified ABI containing just the batchRelay function
+    const batchRelayerABI = [
+      {
+        name: 'batchRelay',
+        type: 'function',
+        stateMutability: 'nonpayable',
+        inputs: [
+          { name: '_pool', type: 'address' },
+          { name: '_withdrawal', type: 'tuple', components: [
+            { name: 'processooor', type: 'address' },
+            { name: 'data', type: 'bytes' }
+          ]},
+          { name: '_proofs', type: 'tuple[]', components: [
+            { name: 'pA', type: 'uint256[2]' },
+            { name: 'pB', type: 'uint256[2][2]' },
+            { name: 'pC', type: 'uint256[2]' },
+            { name: 'pubSignals', type: 'uint256[8]' }
+          ]}
+        ]
+      }
+    ];
+
+    try {
+      // Estimate gas for the contract call
+      const gasEstimate = await client.estimateContractGas({
+        address: contractAddress as `0x${string}`,
+        abi: batchRelayerABI,
+        functionName: functionName,
+        args: args,
+        account: privateKeyToAccount(getSignerPrivateKey(chainId) as Hex).address
+      });
+
+      return gasEstimate;
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.warn(`Contract gas estimation failed for ${functionName} on chain ${chainId}: ${errorMessage}`);
+      throw new Error(`Gas estimation failed: ${errorMessage}`);
+    }
   }
 
 }

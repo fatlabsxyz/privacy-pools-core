@@ -147,12 +147,27 @@ export function getBatchRelayerAddress(chainId: number): string {
  * @param {number} chainId - The chain ID
  * @returns {bigint} The maximum relay fee in basis points
  */
-export function getMaxRelayFeeBPS(chainId: number): bigint {
+export function getMaxBatchRelayFeeBPS(chainId: number): bigint {
   const chainConfig = getChainConfig(chainId);
   const maxFee = chainConfig.max_batch_relay_fee_bps ?? CONFIG.defaults.max_batch_relay_fee_bps;
 
   // Default to 10% if not configured
   return maxFee ?? 1000n;
+}
+
+/**
+ * Gets the batch relay fee BPS for minimum profit margin calculation.
+ * This is used in the profitability formula: relayFee >= tx_cost + (total_batch_value * batch_relay_fee_bps)
+ * 
+ * @param {number} chainId - The chain ID
+ * @returns {bigint} The batch relay fee BPS for profit calculation
+ */
+export function getBatchRelayFeeBPS(chainId: number): bigint {
+  const chainConfig = getChainConfig(chainId);
+  const profitFeeBps = chainConfig.batch_relay_fee_bps ?? CONFIG.defaults.batch_relay_fee_bps;
+
+  // Default to 1% (100 BPS) if not configured  
+  return profitFeeBps ?? 100n;
 }
 
 // Re-export types

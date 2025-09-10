@@ -5,17 +5,14 @@ import crypto from "crypto";
 import { getAddress } from "viem";
 import {
   WithdrawalProof,
-  BatchWithdrawalService,
-  BatchRelayError,
   decodeBatchRelayData,
   validateBatchRelayData,
-  calculateBatchFees,
-  type BatchWithdrawalPayload as SdkBatchWithdrawalPayload
 } from "@0xbow/privacy-pools-core-sdk";
 import {
   getBatchRelayerAddress,
   getFeeReceiverAddress,
-  getMaxRelayFeeBPS,
+  getBatchRelayFeeBPS,
+  getMaxBatchRelayFeeBPS,
 } from "../config/index.js";
 import {
   RelayerError,
@@ -25,18 +22,18 @@ import {
   ErrorCode,
 } from "../exceptions/base.exception.js";
 import { BatchWithdrawalPayload, ContractWithdrawProof } from "../interfaces/relayer/batchRequest.js";
-import { RelayerResponse } from "../interfaces/relayer/request.js";
+import { RelayerResponse, WithdrawalPayload } from "../interfaces/relayer/request.js";
+import { FeeCommitment } from "../interfaces/relayer/common.js";
 import { web3Provider, SdkProvider, db } from "../providers/index.js";
 import { parseSignals } from "../utils.js";
+import { BatchRelayData } from "../utils/batchRelayEncoder.js";
 import { RelayerDatabase } from "../types/db.types.js";
 import { SdkProviderInterface } from "../types/sdk.types.js";
 import { Web3Provider } from "../providers/web3.provider.js";
 
-// Gas costs for batch relay operations
-const BATCH_RELAY_BASE_GAS = 100000n; // Base gas for batch relay function call
-const GAS_PER_PROOF_VERIFICATION = 250000n; // Gas per proof verification
-const GAS_PER_WITHDRAWAL_EXECUTION = 50000n; // Gas per withdrawal execution
-const GAS_BUFFER_PERCENTAGE = 20n; // 20% buffer for gas estimation
+const BASE_GAS_UNITS = 160500n; // Base gas units for batch relay function call
+const GAS_UNITS_PER_NOTE = 650000n; // Gas units per proof verification
+const GAS_PRICE_BUFFER = 20n; // buffer for estimation
 
 /**
  * Service for processing batch relay requests
@@ -56,51 +53,102 @@ export class BatchRelayService {
   }
 
   /**
-   * Calculate the total gas needed for a batch relay operation
+   * Calculate gas units needed for a batch relay operation
    */
-  calculateBatchGas(batchSize: number): bigint {
-    const baseGas = BATCH_RELAY_BASE_GAS;
-    const proofGas = GAS_PER_PROOF_VERIFICATION * BigInt(batchSize);
-    const executionGas = GAS_PER_WITHDRAWAL_EXECUTION * BigInt(batchSize);
-    const totalGas = baseGas + proofGas + executionGas;
+  calculateBatchGasUnits(batchSize: number): bigint {
+    const baseGasUnits = BASE_GAS_UNITS;
+    const notesGasUnits = GAS_UNITS_PER_NOTE * BigInt(batchSize);
+    const totalGasUnits = baseGasUnits + notesGasUnits;
 
-    // Add buffer
-    const finalGas = totalGas + (totalGas * GAS_BUFFER_PERCENTAGE) / 100n;
-    return finalGas;
+    return totalGasUnits;
+  }
+
+
+  /**
+   * Calculate the total gas cost in Wei for profitability validation
+   * Uses deterministic gas units + current gas price + buffer
+   */
+  async calculateBatchGasCostWei(chainId: number, batchSize: number): Promise<bigint> {
+    const gasUnits = this.calculateBatchGasUnits(batchSize);
+    const gasPrice = await this.web3Provider.getGasPrice(chainId);
+    const baseGasCostWei = gasUnits * gasPrice;
+    const bufferedGasCostWei = baseGasCostWei + (baseGasCostWei * GAS_PRICE_BUFFER) / 100n;
+
+    return bufferedGasCostWei;
   }
 
   /**
-   * Calculate the fee in basis points needed to cover gas costs
-   * The fee must be the same BPS across all withdrawals in the batch
+   * validates batch relay profitability before executing the transaction.
+   * checks for: relayFee >= tx_cost + (total_batch_value * batch_relay_fee_bps)
+   * This prevents executing unprofitable batch relays that would lose money for the relayer.
+   * 
+   * @param chainId - The chain ID
+   * @param relayFeeWei - The relay fee in Wei
+   * @param totalBatchValueWei - The total value of the batch in Wei
+   * @param estimatedGasCostWei - The estimated gas cost in Wei
+   * @returns Promise<boolean> - true if profitable, throws error if not
+   */
+  async validateProfitability(
+    chainId: number,
+    relayFeeWei: bigint,
+    totalBatchValueWei: bigint,
+    estimatedGasCostWei: bigint
+  ): Promise<boolean> {
+    try {
+      // Get the minimum profit margin configuration
+      const batchRelayFeeBPS = getBatchRelayFeeBPS(chainId);
+
+      // Calculate minimum profit required (in Wei)
+      const minimumProfitWei = (totalBatchValueWei * batchRelayFeeBPS) / 10000n;
+
+      // Calculate minimum relay fee required
+      const minimumRelayFeeWei = estimatedGasCostWei + minimumProfitWei;
+
+      // Check profitability
+      const isProfitable = relayFeeWei >= minimumRelayFeeWei;
+
+
+      if (!isProfitable) {
+        const shortfallWei = minimumRelayFeeWei - relayFeeWei;
+        throw new RelayerError(
+          `Batch relay not profitable: need ${minimumRelayFeeWei.toString()} Wei, got ${relayFeeWei.toString()} Wei (shortfall: ${shortfallWei.toString()} Wei)`,
+          ErrorCode.INSUFFICIENT_FEE
+        );
+      }
+
+      return true;
+
+    } catch (error) {
+      if (error instanceof RelayerError) {
+        throw error;
+      }
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new RelayerError(
+        `Profitability validation failed: ${errorMessage}`,
+        ErrorCode.VALIDATION_ERROR
+      );
+    }
+  }
+
+  /**
+   * Calculate the fee in basis points needed to cover gas costs + profit
+   * BPS = (gas_cost / total_amount * 10000) + profit_bps
+   * Uses ceiling division to prevent precision loss
    */
   async calculateBatchFeeBPS(
     chainId: number,
     totalAmount: bigint,
-    batchSize: number,
-    baseFeeBPS: number
+    batchSize: number
   ): Promise<number> {
     try {
-      // Get current gas price
-      const gasPrice = await this.web3Provider.getGasPrice(chainId);
+      const bufferedGasCostWei = await this.calculateBatchGasCostWei(chainId, batchSize);
+      const gasFeeBPS = (bufferedGasCostWei * 10000n + totalAmount - 1n) / totalAmount;
+      const profitBPS = getBatchRelayFeeBPS(chainId);
+      const totalFeeBPS = gasFeeBPS + profitBPS;
 
-      // Calculate total gas needed
-      const totalGasUnits = this.calculateBatchGas(batchSize);
-
-      // Calculate gas cost in wei
-      const gasCostWei = totalGasUnits * gasPrice;
-
-      // Calculate the BPS needed to cover gas costs
-      // gasCostWei = totalAmount * gasFeeBPS / 10000
-      // gasFeeBPS = (gasCostWei * 10000) / totalAmount
-      const gasFeeBPS = (gasCostWei * 10000n) / totalAmount;
-
-      // Add base fee BPS (relayer profit)
-      const totalFeeBPS = BigInt(baseFeeBPS) + gasFeeBPS;
-
-      // Ensure we don't exceed maximum (e.g., 10% = 1000 BPS)
-      const MAX_FEE_BPS = 1000n;
-      if (totalFeeBPS > MAX_FEE_BPS) {
-        throw new Error(`Required fee ${totalFeeBPS} BPS exceeds maximum ${MAX_FEE_BPS} BPS`);
+      const maxBatchRelayFeeBps = getMaxBatchRelayFeeBPS(chainId);
+      if (totalFeeBPS > maxBatchRelayFeeBps) {
+        throw new Error(`Required fee ${totalFeeBPS} BPS exceeds maximum ${maxBatchRelayFeeBps} BPS`);
       }
 
       return Number(totalFeeBPS);
@@ -121,36 +169,51 @@ export class BatchRelayService {
     const timestamp = Date.now();
 
     try {
-      // Store request in database (convert to standard withdrawal payload)
-      const withdrawalPayload: any = {
-        proof: payload.proofs, // Store first proof for tracking
+
+      // Store request in database
+      const firstProof = payload.originalProofs[0];
+      if (!firstProof) {
+        throw new WithdrawalValidationError("No proofs provided", ErrorCode.INVALID_INPUT);
+      }
+
+      // TODO: save all proofs?
+      const withdrawalProofForDb: WithdrawalProof = {
+        proof: {
+          protocol: "groth16",
+          curve: "bn128",
+          pi_a: firstProof.proof.pi_a,
+          pi_b: firstProof.proof.pi_b,
+          pi_c: firstProof.proof.pi_c,
+        },
+        publicSignals: firstProof.publicSignals,
+      };
+
+      const withdrawalPayload: WithdrawalPayload = {
+        proof: withdrawalProofForDb,
         withdrawal: payload.withdrawal,
-        scope: BigInt(0), // Batch doesn't use scope
+        scope: BigInt(0),
         feeCommitment: payload.feeCommitment
       };
-      await this.db.createNewRequest(
-        requestId,
-        timestamp,
-        withdrawalPayload
-      );
+      await this.db.createNewRequest(requestId, timestamp, withdrawalPayload);
 
-      // Validate the batch withdrawal
-      await this.validateBatchWithdrawal(payload, chainId);
+      const batchRelayData = decodeBatchRelayData(payload.withdrawal.data);
 
-      // Verify all proofs
+      await this.validateBatchWithdrawal(payload, batchRelayData, chainId);
       await this.verifyAllProofs(payload.originalProofs as WithdrawalProof[]);
 
-      // Calculate amounts
       const amounts = this.calculateTotalAmounts(payload.proofs);
 
-      // Broadcast the batch withdrawal
+      const estimatedGasCostWei = await this.calculateBatchGasCostWei(chainId, payload.proofs.length);
+      const relayFeeWei = (amounts.totalAmount * batchRelayData.relayFeeBPS) / 10000n;
+
+      await this.validateProfitability(chainId, relayFeeWei, amounts.totalAmount, estimatedGasCostWei);
+
       const txHash = await this.broadcastBatchWithdrawal(
         payload,
         chainId,
         amounts.totalAmount
       );
 
-      // Update database with success
       await this.db.updateBroadcastedRequest(requestId, txHash);
 
       return {
@@ -160,7 +223,6 @@ export class BatchRelayService {
         requestId,
       };
     } catch (error) {
-      console.error("Batch relay service error:", error);
       let errorMessage: string;
       if (error instanceof RelayerError) {
         errorMessage = error.toPrettyString();
@@ -184,13 +246,13 @@ export class BatchRelayService {
    */
   protected async validateBatchWithdrawal(
     payload: BatchWithdrawalPayload,
+    batchData: BatchRelayData,
     chainId: number
   ) {
-    const batchRelayerAddress = getBatchRelayerAddress(chainId);
-    const feeReceiverAddress = getFeeReceiverAddress(chainId);
-
-    // Decode batch relay data
-    const batchData = decodeBatchRelayData(payload.withdrawal.data);
+    const batchRelayerAddress = getAddress(getBatchRelayerAddress(chainId));
+    const feeReceiverAddress = getAddress(getFeeReceiverAddress(chainId));
+    const processooorAddress = getAddress(payload.withdrawal.processooor);
+    const batchFeeRecipient = getAddress(batchData.feeRecipient);
 
     // Use SDK validation
     try {
@@ -203,14 +265,14 @@ export class BatchRelayService {
     }
 
     // Validate processooor is the batch relayer
-    if (getAddress(payload.withdrawal.processooor) !== getAddress(batchRelayerAddress)) {
+    if (processooorAddress !== batchRelayerAddress) {
       throw WithdrawalValidationError.processooorMismatch(
         `Expected ${batchRelayerAddress}, got ${payload.withdrawal.processooor}`
       );
     }
 
     // Validate fee recipient
-    if (getAddress(batchData.feeRecipient) !== getAddress(feeReceiverAddress)) {
+    if (batchFeeRecipient !== feeReceiverAddress) {
       throw WithdrawalValidationError.feeReceiverMismatch(
         `Expected ${feeReceiverAddress}, got ${batchData.feeRecipient}`
       );
@@ -225,7 +287,7 @@ export class BatchRelayService {
     }
 
     // Validate fee is within limits
-    const maxFeeBPS = getMaxRelayFeeBPS(chainId);
+    const maxFeeBPS = getMaxBatchRelayFeeBPS(chainId);
     if (batchData.relayFeeBPS > maxFeeBPS) {
       throw WithdrawalValidationError.feeTooHigh(
         batchData.relayFeeBPS,
@@ -330,17 +392,10 @@ export class BatchRelayService {
     try {
       const batchRelayerAddress = getAddress(getBatchRelayerAddress(chainId));
 
-
-      // Delegate contract execution to SDK with already-proven payload
-      const result = await this.sdkProvider.executeBatchRelay(
-        batchRelayerAddress,
-        payload
-      );
-
+      const result = await this.sdkProvider.executeBatchRelay(batchRelayerAddress, payload);
 
       return result.transactionHash;
     } catch (error) {
-      console.error("Failed to broadcast batch relay", { error });
       throw BlockchainError.transactionFailed(
         error instanceof Error ? error.message : "Unknown error"
       );
@@ -351,21 +406,14 @@ export class BatchRelayService {
    * Validate fee commitment if provided
    */
   protected async validateFeeCommitment(
-    feeCommitment: any,
+    feeCommitment: FeeCommitment,
     relayFeeBPS: bigint,
     chainId: number
   ) {
-    // Check expiration
-    if (feeCommitment.expiresAt && Date.now() > feeCommitment.expiresAt) {
+    if (feeCommitment.expiration && Date.now() > feeCommitment.expiration) {
       throw WithdrawalValidationError.feeCommitmentExpired();
     }
 
-    // Check fee matches commitment
-    if (feeCommitment.relayFeeBPS && BigInt(feeCommitment.relayFeeBPS) !== relayFeeBPS) {
-      throw WithdrawalValidationError.feeCommitmentMismatch(
-        feeCommitment.relayFeeBPS,
-        relayFeeBPS.toString()
-      );
-    }
+    // TODO: add signature check
   }
 }

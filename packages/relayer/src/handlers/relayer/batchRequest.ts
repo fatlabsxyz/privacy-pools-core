@@ -6,11 +6,55 @@ import {
   ContractWithdrawProof,
 } from "../../interfaces/relayer/batchRequest.js";
 import { RelayerResponse } from "../../interfaces/relayer/request.js";
-import { ValidationError, ConfigError } from "../../exceptions/base.exception.js";
+import { ValidationError, ConfigError, WithdrawalValidationError } from "../../exceptions/base.exception.js";
 import { getChainConfig } from "../../config/index.js";
 import { web3Provider } from "../../providers/index.js";
 import { batchRelayService } from "../../services/index.js";
 import { BatchRequestMarshall } from "../../types.js";
+import { FeeCommitment } from "../../interfaces/relayer/common.js";
+
+/**
+ * Checks if a fee commitment has expired.
+ * @param feeCommitment - The fee commitment to check
+ * @returns true if expired, false otherwise
+ */
+function commitmentExpired(feeCommitment: FeeCommitment): boolean {
+  return feeCommitment.expiration < Number(new Date());
+}
+
+/**
+ * Validates the signature of a fee commitment.
+ * @param chainId - The chain ID
+ * @param feeCommitment - The fee commitment to validate
+ * @returns Promise<boolean> - true if valid, false otherwise
+ */
+async function validFeeCommitment(chainId: number, feeCommitment: FeeCommitment): Promise<boolean> {
+  return web3Provider.verifyRelayerCommitment(chainId, feeCommitment);
+}
+
+/**
+ * Validates the batch fee commitment if provided.
+ * @param chainId - The chain ID
+ * @param feeCommitment - The fee commitment to validate (optional)
+ * @throws {WithdrawalValidationError} - If validation fails
+ */
+async function validateBatchFeeCommitment(chainId: number, feeCommitment?: FeeCommitment | null): Promise<void> {
+  if (feeCommitment) {
+    // Check if fee commitment has expired
+    if (commitmentExpired(feeCommitment)) {
+      throw WithdrawalValidationError.relayerCommitmentRejected(
+        `Batch relay fee commitment expired, please quote again`,
+      );
+    }
+
+    // Verify signature
+    if (!await validFeeCommitment(chainId, feeCommitment)) {
+      throw WithdrawalValidationError.relayerCommitmentRejected(
+        `Invalid batch relayer commitment signature`,
+      );
+    }
+  }
+}
 
 /**
  * Parses and validates the batch withdrawal request body.
@@ -114,6 +158,9 @@ export async function batchRelayRequestHandler(
 ) {
   try {
     const { payload: batchPayload, chainId } = parseBatchWithdrawal(req.body);
+    
+    // Validate fee commitment (same as regular request handler)
+    await validateBatchFeeCommitment(chainId, batchPayload.feeCommitment);
     
     // Check gas price (same as regular request handler)
     const maxGasPrice = getChainConfig(chainId)?.max_gas_price;

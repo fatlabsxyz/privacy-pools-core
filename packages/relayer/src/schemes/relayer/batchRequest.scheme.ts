@@ -73,8 +73,8 @@ const feeCommitmentSchema = {
   additionalProperties: false,
 };
 
-// Main schema for batch relay request body
-const batchRelayRequestBodySchema: any = {
+// Main schema for batch relay request body  
+const batchRelayRequestBodySchema = {
   type: "object",
   properties: {
     withdrawal: withdrawalSchema,

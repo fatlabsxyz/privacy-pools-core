@@ -59,6 +59,7 @@ export const zChainConfig = z.object({
   entrypoint_address: zAddress.optional(),
   batch_relayer_address: zAddress.optional(),
   max_batch_relay_fee_bps: zFeeBps.optional(),
+  batch_relay_fee_bps: zFeeBps.optional(), // For minimum profit margin calculation
   supported_assets: z.array(zAssetConfig).optional(),
   native_currency: zNativeCurrency.optional(),
 });
@@ -77,6 +78,7 @@ export const zDefaultConfig = z.object({
   entrypoint_address: zAddress,
   batch_relayer_address: zAddress.optional(),
   max_batch_relay_fee_bps: zFeeBps.optional(),
+  batch_relay_fee_bps: zFeeBps.optional(), // For minimum profit margin calculation
 });
 
 // Complete configuration schema

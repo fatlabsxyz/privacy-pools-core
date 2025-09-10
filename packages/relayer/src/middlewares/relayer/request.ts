@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from "express";
+import { ErrorObject } from "ajv";
 import { ValidationError } from "../../exceptions/base.exception.js";
 import { validateDetailsQuerystring } from "../../schemes/relayer/details.scheme.js";
 import { validateRelayRequestBody } from "../../schemes/relayer/request.scheme.js";
@@ -80,7 +81,7 @@ export function validateBatchRelayQuoteMiddleware(
   const isValid = validateBatchRelayQuoteBody(req.body);
   if (!isValid) {
     const messages: string[] = [];
-    validateBatchRelayQuoteBody.errors?.forEach((e: any) => e?.message ? messages.push(e.message) : undefined);
+    validateBatchRelayQuoteBody.errors?.forEach((e: ErrorObject) => e?.message ? messages.push(e.message) : undefined);
     next(ValidationError.invalidInput({ message: messages.join("\n") }));
     return;
   }

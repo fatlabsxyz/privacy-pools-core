@@ -56,15 +56,14 @@ export async function batchRelayQuoteHandler(
     const feeBPS = await batchRelayService.calculateBatchFeeBPS(
       chainId,
       totalAmount,
-      batchSize,
-      Number(config.fee_bps)
+      batchSize
     );
     
     // Calculate estimated fee (same BPS applied to total amount)
     const estimatedFee = (totalAmount * BigInt(feeBPS)) / 10000n;
     
-    // Calculate estimated gas
-    const estimatedGas = batchRelayService.calculateBatchGas(batchSize);
+    // Calculate estimated gas units for display (no pricing applied)
+    const estimatedGasUnits = batchRelayService.calculateBatchGasUnits(batchSize);
     
     // Create expiration timestamp
     const expiresAt = Date.now() + TIME_20_SECS;
@@ -73,7 +72,7 @@ export async function batchRelayQuoteHandler(
     const response: BatchRelayQuoteResponse = {
       relayFeeBPS: feeBPS,
       estimatedFee: estimatedFee.toString(),
-      estimatedGas: estimatedGas.toString(),
+      estimatedGas: estimatedGasUnits.toString(),
       expiresAt,
     };
     
@@ -81,15 +80,15 @@ export async function batchRelayQuoteHandler(
     const recipient = req.body.recipient ? getAddress(req.body.recipient.toString()) : undefined;
     
     if (recipient) {
-      const feeReceiverAddress = getFeeReceiverAddress(chainId);
+      const feeReceiverAddress = getAddress(getFeeReceiverAddress(chainId));
       
       // Encode batch relay data with the calculated fee BPS
       const batchRelayData = encodeBatchRelayData({
         recipient,
-        feeRecipient: getAddress(feeReceiverAddress),
+        feeRecipient: feeReceiverAddress,
         relayFeeBPS: BigInt(feeBPS),
         batchSize,
-        totalValue: totalAmount  // Use the requested total amount
+        totalValue: totalAmount
       });
       
       const relayerCommitment = { 
@@ -114,7 +113,6 @@ export async function batchRelayQuoteHandler(
       .json(res.locals.marshalResponse(new BatchQuoteMarshall(response)));
     
   } catch (error) {
-    console.error("Batch quote handler error:", error);
     next(error);
   }
 }

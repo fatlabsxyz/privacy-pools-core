@@ -403,7 +403,13 @@ export class ContractInteractionsService implements ContractInteractions {
   }
 
   private formatProof(proof: CommitmentProof | WithdrawalProof) {
-    return {
+    if (!proof || !proof.proof) {
+      throw new Error(
+        `formatProof received invalid proof structure: ${JSON.stringify(proof)}`,
+      );
+    }
+
+    const result = {
       pA: [
         bigintToHex(proof.proof.pi_a?.[0]),
         bigintToHex(proof.proof.pi_a?.[1]),
@@ -424,6 +430,8 @@ export class ContractInteractionsService implements ContractInteractions {
       ],
       pubSignals: proof.publicSignals.map(bigintToHex),
     };
+
+    return result;
   }
 
   private async executeTransaction(request: any): Promise<TransactionResponse> {
@@ -455,12 +463,27 @@ export class ContractInteractionsService implements ContractInteractions {
     batchRelayerAddress: Address,
     poolAddress: Address,
     withdrawal: Withdrawal,
-    proofs: WithdrawalProof[]
+    proofs: WithdrawalProof[],
   ): Promise<BatchRelayResult> {
+    console.log("🔍 DEBUG batchRelay - Input proofs received:", {
+      proofsType: typeof proofs,
+      proofsIsArray: Array.isArray(proofs),
+      proofsLength: proofs?.length || "no length",
+      proofsStructure: proofs?.map((proof, i) => ({
+        index: i,
+        proofType: typeof proof,
+        proofIsNull: proof === null,
+        proofIsUndefined: proof === undefined,
+        proofKeys: proof ? Object.keys(proof) : "proof is null or undefined",
+        hasProofProperty: proof && "proof" in proof,
+        hasPublicSignals: proof && "publicSignals" in proof,
+      })),
+    });
+
     // Validate inputs
     if (withdrawal.processooor !== batchRelayerAddress) {
       throw new Error(
-        `Invalid processooor: expected ${batchRelayerAddress}, got ${withdrawal.processooor}`
+        `Invalid processooor: expected ${batchRelayerAddress}, got ${withdrawal.processooor}`,
       );
     }
 
@@ -468,13 +491,40 @@ export class ContractInteractionsService implements ContractInteractions {
     const batchRelayData = decodeBatchRelayData(withdrawal.data);
     if (batchRelayData.batchSize !== proofs.length) {
       throw new Error(
-        `Batch size mismatch: expected ${batchRelayData.batchSize}, got ${proofs.length} proofs`
+        `Batch size mismatch: expected ${batchRelayData.batchSize}, got ${proofs.length} proofs`,
       );
     }
 
     try {
+      console.log("🔍 DEBUG batchRelay - About to format proofs...");
       // Format all proofs
-      const formattedProofs = proofs.map(proof => this.formatProof(proof));
+      const formattedProofs = proofs.map((proof, index) => {
+        console.log(`🔍 DEBUG batchRelay - Formatting proof ${index + 1}:`, {
+          proofType: typeof proof,
+          proofIsNull: proof === null,
+          proofIsUndefined: proof === undefined,
+          proofKeys: proof ? Object.keys(proof) : "proof is null or undefined",
+        });
+        if (!proof) {
+          throw new Error(`Proof ${index + 1} is null or undefined`);
+        }
+        return this.formatProof(proof);
+      });
+
+      console.log("🔧 DEBUG batchRelay - Final formattedProofs before viem:", {
+        formattedProofsType: typeof formattedProofs,
+        formattedProofsArray: Array.isArray(formattedProofs),
+        formattedProofsLength: formattedProofs?.length,
+        formattedProofsStructure: formattedProofs?.map((proof, i) => ({
+          index: i,
+          proofType: typeof proof,
+          proofIsNull: proof === null,
+          proofIsUndefined: proof === undefined,
+          proofKeys: proof ? Object.keys(proof) : "proof is null or undefined",
+          hasPaProperty: proof && "pA" in proof,
+          pAValue: proof?.pA,
+        })),
+      });
 
       // Simulate the contract call
       const { request } = await this.publicClient.simulateContract({
@@ -489,12 +539,14 @@ export class ContractInteractionsService implements ContractInteractions {
       const hash = await this.walletClient.writeContract(request);
 
       // Wait for transaction receipt
-      const receipt = await this.publicClient.waitForTransactionReceipt({ hash });
+      const receipt = await this.publicClient.waitForTransactionReceipt({
+        hash,
+      });
 
       // Parse the BatchRelayed event from the logs
       // The BatchRelayer contract emits this event with the final amounts
       const batchRelayedEvent = receipt.logs
-        .map(log => {
+        .map((log) => {
           try {
             return decodeEventLog({
               abi: IBatchRelayerABI,
@@ -505,10 +557,10 @@ export class ContractInteractionsService implements ContractInteractions {
             return null;
           }
         })
-        .find(event => event?.eventName === 'BatchRelayed');
+        .find((event) => event?.eventName === "BatchRelayed");
 
       if (!batchRelayedEvent) {
-        throw new Error('BatchRelayed event not found in transaction receipt');
+        throw new Error("BatchRelayed event not found in transaction receipt");
       }
 
       const amountAfterFees = batchRelayedEvent.args._amountAfterFees as bigint;
@@ -523,9 +575,13 @@ export class ContractInteractionsService implements ContractInteractions {
         amountAfterFees,
       };
     } catch (error) {
-      console.error("Batch Relay Error:", { error, batchRelayerAddress, poolAddress });
+      console.error("Batch Relay Error:", {
+        error,
+        batchRelayerAddress,
+        poolAddress,
+      });
       throw new Error(
-        `Failed to execute batch relay: ${error instanceof Error ? error.message : "Unknown error"}`
+        `Failed to execute batch relay: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }
@@ -537,11 +593,31 @@ export class ContractInteractionsService implements ContractInteractions {
     batchRelayerAddress: Address,
     poolAddress: Address,
     withdrawal: Withdrawal,
-    proofs: WithdrawalProof[]
+    proofs: WithdrawalProof[],
   ): Promise<bigint> {
     try {
-      const formattedProofs = proofs.map(proof => this.formatProof(proof));
-      
+      console.log("🔍 DEBUG estimateBatchRelayGas - Input proofs:", {
+        proofsType: typeof proofs,
+        proofsIsArray: Array.isArray(proofs),
+        proofsLength: proofs?.length || "no length",
+        proofsStructure: proofs?.map((proof, i) => ({
+          index: i,
+          proofType: typeof proof,
+          proofIsNull: proof === null,
+          proofIsUndefined: proof === undefined,
+          proofKeys: proof ? Object.keys(proof) : "proof is null or undefined",
+        })),
+      });
+
+      const formattedProofs = proofs.map((proof, index) => {
+        if (!proof) {
+          throw new Error(
+            `EstimateGas: Proof ${index + 1} is null or undefined`,
+          );
+        }
+        return this.formatProof(proof);
+      });
+
       const gas = await this.publicClient.estimateContractGas({
         address: batchRelayerAddress,
         abi: IBatchRelayerABI as Abi,
@@ -554,7 +630,7 @@ export class ContractInteractionsService implements ContractInteractions {
     } catch (error) {
       console.error("Gas Estimation Error:", { error });
       throw new Error(
-        `Failed to estimate gas: ${error instanceof Error ? error.message : "Unknown error"}`
+        `Failed to estimate gas: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }
@@ -566,11 +642,31 @@ export class ContractInteractionsService implements ContractInteractions {
     batchRelayerAddress: Address,
     poolAddress: Address,
     withdrawal: Withdrawal,
-    proofs: WithdrawalProof[]
+    proofs: WithdrawalProof[],
   ): Promise<boolean> {
     try {
-      const formattedProofs = proofs.map(proof => this.formatProof(proof));
-      
+      console.log("🔍 DEBUG simulateBatchRelay - Input proofs:", {
+        proofsType: typeof proofs,
+        proofsIsArray: Array.isArray(proofs),
+        proofsLength: proofs?.length || "no length",
+        proofsStructure: proofs?.map((proof, i) => ({
+          index: i,
+          proofType: typeof proof,
+          proofIsNull: proof === null,
+          proofIsUndefined: proof === undefined,
+          proofKeys: proof ? Object.keys(proof) : "proof is null or undefined",
+        })),
+      });
+
+      const formattedProofs = proofs.map((proof, index) => {
+        if (!proof) {
+          throw new Error(
+            `SimulateBatch: Proof ${index + 1} is null or undefined`,
+          );
+        }
+        return this.formatProof(proof);
+      });
+
       await this.publicClient.simulateContract({
         address: batchRelayerAddress,
         abi: IBatchRelayerABI as Abi,
@@ -601,7 +697,7 @@ export class ContractInteractionsService implements ContractInteractions {
     } catch (error) {
       console.error("Read Contract Error:", { error });
       throw new Error(
-        `Failed to read MAX_RELAY_FEE_BPS: ${error instanceof Error ? error.message : "Unknown error"}`
+        `Failed to read MAX_RELAY_FEE_BPS: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }

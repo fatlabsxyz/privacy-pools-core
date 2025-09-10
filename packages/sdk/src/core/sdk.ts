@@ -130,6 +130,13 @@ export class PrivacyPoolSDK {
       throw new Error('BatchWithdrawal service not initialized. Call createContractInstance first.');
     }
 
+    if (!this.contractsService) {
+      throw new Error('Contracts service not initialized. Call createContractInstance first.');
+    }
+
+    // Get scope from pool address
+    const scope = await this.contractsService.getScope(poolAddress);
+
     // Build batch withdrawal
     const payload = await this.batchWithdrawalService.buildBatchWithdrawal(
       notes,
@@ -138,13 +145,14 @@ export class PrivacyPoolSDK {
       feeRecipient,
       relayFeeBPS,
       poolAddress,
-      proofInputs
+      proofInputs,
+      `0x${scope.toString(16).padStart(64, "0")}` as Hex,
     );
 
     // Execute batch relay
     return await this.batchWithdrawalService.executeBatchRelay(
       batchRelayerAddress,
-      payload
+      payload,
     );
   }
 
@@ -158,11 +166,22 @@ export class PrivacyPoolSDK {
     feeRecipient: Address,
     relayFeeBPS: bigint,
     poolAddress: Address,
-    proofInputs: WithdrawalProofInput[]
+    proofInputs: WithdrawalProofInput[],
   ): Promise<BatchWithdrawalPayload> {
     if (!this.batchWithdrawalService) {
-      throw new Error('BatchWithdrawal service not initialized. Call createContractInstance first.');
+      throw new Error(
+        "BatchWithdrawal service not initialized. Call createContractInstance first.",
+      );
     }
+
+    if (!this.contractsService) {
+      throw new Error(
+        "Contracts service not initialized. Call createContractInstance first.",
+      );
+    }
+
+    // Get scope from pool address
+    const scope = await this.contractsService.getScope(poolAddress);
 
     return await this.batchWithdrawalService.buildBatchWithdrawal(
       notes,
@@ -171,7 +190,82 @@ export class PrivacyPoolSDK {
       feeRecipient,
       relayFeeBPS,
       poolAddress,
-      proofInputs
+      proofInputs,
+      `0x${scope.toString(16).padStart(64, "0")}` as Hex,
+    );
+  }
+
+  /**
+   * Generate proofs for batch withdrawal with correct batch context
+   * This is the recommended way to generate proofs for batch relay operations
+   *
+   * @param notes - Array of notes to withdraw
+   * @param batchRelayerAddress - Address of BatchRelayer contract
+   * @param recipient - Final recipient of funds
+   * @param feeRecipient - Address to receive fees
+   * @param relayFeeBPS - Fee in basis points
+   * @param poolAddress - Address of the privacy pool
+   * @param proofInputs - Array of proof inputs (contexts will be overridden with batch context)
+   * @returns Array of correctly proven withdrawal proofs for batch relay
+   */
+  public async proveBatchWithdrawal(
+    notes: AccountCommitment[],
+    batchRelayerAddress: Address,
+    recipient: Address,
+    feeRecipient: Address,
+    relayFeeBPS: bigint,
+    poolAddress: Address,
+    proofInputs: WithdrawalProofInput[],
+  ): Promise<WithdrawalProof[]> {
+    if (!this.batchWithdrawalService) {
+      throw new Error(
+        "BatchWithdrawal service not initialized. Call createContractInstance first.",
+      );
+    }
+
+    if (!this.contractsService) {
+      throw new Error(
+        "Contracts service not initialized. Call createContractInstance first.",
+      );
+    }
+
+    // Get scope from pool address
+    const scope = await this.contractsService.getScope(poolAddress);
+
+    return await this.batchWithdrawalService.proveBatchWithdrawal(
+      notes,
+      batchRelayerAddress,
+      recipient,
+      feeRecipient,
+      relayFeeBPS,
+      poolAddress,
+      proofInputs,
+      `0x${scope.toString(16).padStart(64, "0")}` as Hex,
+    );
+  }
+
+  /**
+   * Execute a batch withdrawal with already-proven payload
+   * This is used by relayers that receive pre-proven batch withdrawal payloads
+   *
+   * @param batchRelayerAddress - Address of BatchRelayer contract
+   * @param payload - BatchWithdrawalPayload with proven proofs
+   * @returns Transaction result
+   */
+  public async executeBatchWithdrawal(
+    batchRelayerAddress: Address,
+    payload: BatchWithdrawalPayload,
+  ): Promise<BatchRelayResult> {
+    if (!this.batchWithdrawalService) {
+      throw new Error(
+        "BatchWithdrawal service not initialized. Call createContractInstance first.",
+      );
+    }
+
+    // Delegate to SDK's batch withdrawal service for execution only
+    return await this.batchWithdrawalService.executeBatchRelay(
+      batchRelayerAddress,
+      payload,
     );
   }
 
@@ -185,11 +279,22 @@ export class PrivacyPoolSDK {
     feeRecipient: Address,
     relayFeeBPS: bigint,
     poolAddress: Address,
-    proofInputs: WithdrawalProofInput[]
+    proofInputs: WithdrawalProofInput[],
   ): Promise<bigint> {
     if (!this.batchWithdrawalService) {
-      throw new Error('BatchWithdrawal service not initialized. Call createContractInstance first.');
+      throw new Error(
+        "BatchWithdrawal service not initialized. Call createContractInstance first.",
+      );
     }
+
+    if (!this.contractsService) {
+      throw new Error(
+        "Contracts service not initialized. Call createContractInstance first.",
+      );
+    }
+
+    // Get scope from pool address
+    const scope = await this.contractsService.getScope(poolAddress);
 
     // Build payload
     const payload = await this.batchWithdrawalService.buildBatchWithdrawal(
@@ -199,13 +304,14 @@ export class PrivacyPoolSDK {
       feeRecipient,
       relayFeeBPS,
       poolAddress,
-      proofInputs
+      proofInputs,
+      `0x${scope.toString(16).padStart(64, "0")}` as Hex,
     );
 
     // Estimate gas
     return await this.batchWithdrawalService.estimateGas(
       batchRelayerAddress,
-      payload
+      payload,
     );
   }
 
@@ -214,7 +320,7 @@ export class PrivacyPoolSDK {
    */
   public calculateBatchAmounts(
     notes: AccountCommitment[],
-    relayFeeBPS: bigint
+    relayFeeBPS: bigint,
   ): {
     totalAmount: bigint;
     fee: bigint;
@@ -225,15 +331,18 @@ export class PrivacyPoolSDK {
       const totalAmount = notes.reduce((sum, note) => sum + note.value, 0n);
       const fee = (totalAmount * relayFeeBPS) / 10000n;
       const amountAfterFees = totalAmount - fee;
-      
+
       return {
         totalAmount,
         fee,
-        amountAfterFees
+        amountAfterFees,
       };
     }
 
-    return this.batchWithdrawalService.calculateBatchAmounts(notes, relayFeeBPS);
+    return this.batchWithdrawalService.calculateBatchAmounts(
+      notes,
+      relayFeeBPS,
+    );
   }
 
   /**

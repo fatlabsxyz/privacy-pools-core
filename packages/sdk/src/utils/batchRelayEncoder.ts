@@ -1,5 +1,10 @@
-import { encodeAbiParameters, decodeAbiParameters, type Hex, type Address } from 'viem';
-import type { BatchRelayData } from '../types/withdrawal.js';
+import {
+  encodeAbiParameters,
+  decodeAbiParameters,
+  type Hex,
+  type Address,
+} from "viem";
+import type { BatchRelayData } from "../types/withdrawal.js";
 
 /**
  * Encodes BatchRelayData for use in withdrawal.data field
@@ -9,17 +14,19 @@ import type { BatchRelayData } from '../types/withdrawal.js';
 export function encodeBatchRelayData(data: BatchRelayData): Hex {
   return encodeAbiParameters(
     [
-      { name: 'recipient', type: 'address' },
-      { name: 'feeRecipient', type: 'address' },
-      { name: 'relayFeeBPS', type: 'uint256' },
-      { name: 'batchSize', type: 'uint8' }
+      { name: "recipient", type: "address" },
+      { name: "feeRecipient", type: "address" },
+      { name: "relayFeeBPS", type: "uint256" },
+      { name: "batchSize", type: "uint8" },
+      { name: "totalValue", type: "uint256" },
     ],
     [
       data.recipient,
       data.feeRecipient,
       data.relayFeeBPS,
-      data.batchSize
-    ]
+      data.batchSize,
+      data.totalValue,
+    ],
   );
 }
 
@@ -31,19 +38,21 @@ export function encodeBatchRelayData(data: BatchRelayData): Hex {
 export function decodeBatchRelayData(data: Hex): BatchRelayData {
   const decoded = decodeAbiParameters(
     [
-      { name: 'recipient', type: 'address' },
-      { name: 'feeRecipient', type: 'address' },
-      { name: 'relayFeeBPS', type: 'uint256' },
-      { name: 'batchSize', type: 'uint8' }
+      { name: "recipient", type: "address" },
+      { name: "feeRecipient", type: "address" },
+      { name: "relayFeeBPS", type: "uint256" },
+      { name: "batchSize", type: "uint8" },
+      { name: "totalValue", type: "uint256" },
     ],
-    data
+    data,
   );
-  
+
   return {
     recipient: decoded[0] as Address,
     feeRecipient: decoded[1] as Address,
     relayFeeBPS: decoded[2] as bigint,
-    batchSize: Number(decoded[3])
+    batchSize: Number(decoded[3]),
+    totalValue: decoded[4] as bigint,
   };
 }
 
@@ -53,24 +62,28 @@ export function decodeBatchRelayData(data: Hex): BatchRelayData {
  * @throws Error if validation fails
  */
 export function validateBatchRelayData(data: BatchRelayData): void {
-  if (data.recipient === '0x0000000000000000000000000000000000000000') {
-    throw new Error('BatchRelayData: recipient cannot be zero address');
+  if (data.recipient === "0x0000000000000000000000000000000000000000") {
+    throw new Error("BatchRelayData: recipient cannot be zero address");
   }
-  
-  if (data.feeRecipient === '0x0000000000000000000000000000000000000000') {
-    throw new Error('BatchRelayData: feeRecipient cannot be zero address');
+
+  if (data.feeRecipient === "0x0000000000000000000000000000000000000000") {
+    throw new Error("BatchRelayData: feeRecipient cannot be zero address");
   }
-  
+
   if (data.relayFeeBPS > 10000n) {
-    throw new Error('BatchRelayData: relayFeeBPS cannot exceed 10000 (100%)');
+    throw new Error("BatchRelayData: relayFeeBPS cannot exceed 10000 (100%)");
   }
-  
+
   if (data.batchSize === 0) {
-    throw new Error('BatchRelayData: batchSize must be greater than 0');
+    throw new Error("BatchRelayData: batchSize must be greater than 0");
   }
-  
+
   if (data.batchSize > 255) {
-    throw new Error('BatchRelayData: batchSize cannot exceed 255');
+    throw new Error("BatchRelayData: batchSize cannot exceed 255");
+  }
+
+  if (data.totalValue === 0n) {
+    throw new Error("BatchRelayData: totalValue must be greater than 0");
   }
 }
 
@@ -82,16 +95,16 @@ export function validateBatchRelayData(data: BatchRelayData): void {
  */
 export function calculateBatchFees(
   totalAmount: bigint,
-  relayFeeBPS: bigint
+  relayFeeBPS: bigint,
 ): {
   fee: bigint;
   amountAfterFees: bigint;
 } {
   const fee = (totalAmount * relayFeeBPS) / 10000n;
   const amountAfterFees = totalAmount - fee;
-  
+
   return {
     fee,
-    amountAfterFees
+    amountAfterFees,
   };
 }

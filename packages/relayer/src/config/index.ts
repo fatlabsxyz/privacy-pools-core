@@ -148,8 +148,9 @@ export function isExceptionToken(asset: string): boolean {
 export function getQuoteChainId(chainId: number): number {
   switch (chainId) {
     case 11155111: // Sepolia
+      return 1;
     case 11155420: // Optimism Sepolia
-      return 1; // Use Ethereum mainnet for quotes
+      return 10;
     default:
       return chainId;
   }

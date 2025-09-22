@@ -1,6 +1,7 @@
 import { Address } from "viem";
 import { quoteProvider, web3Provider } from "../providers/index.js";
 import { getQuoteChainId } from "../config/index.js";
+import { isWeth } from "../utils.js";
 
 interface QuoteFeeBPSParams {
   chainId: number,
@@ -52,7 +53,7 @@ export class QuoteService {
     const extraGasDetail = extraGas ? { extraGasTxCost: this.extraGasTxCost, extraGasFundAmount: this.extraGasFundAmount } : undefined;
 
     let quote: { num: bigint, den: bigint; path: (string | number)[]; };
-    if (assetAddress.toLowerCase() === NativeAddress.toLowerCase()) {
+    if (assetAddress.toLowerCase() === NativeAddress.toLowerCase() || isWeth(assetAddress, chainId)) {
       quote = { num: 1n, den: 1n, path: [] };
     } else {
       // Price quotes use mainnet for testnets

@@ -35,6 +35,7 @@ export const FACTORY_CONTRACT_ADDRESS: Record<string, Address> = {
   "10": "0x1F98431c8aD98523631AE4a59f267346ea31F984",        // Optimism
   "42161": "0x1F98431c8aD98523631AE4a59f267346ea31F984",     // Arbitrum
   "11155111": "0x0227628f3f023bb0b980b67d528571c95c6dac1c",  // Sepolia
+  "11155420": "0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24",  // Optimism Sepolia
 };
 
 // Common intermediate tokens for multi-hop routing

@@ -144,5 +144,16 @@ export function isExceptionToken(asset: string): boolean {
   return EXCEPTION_TOKENS.includes(getAddress(asset));
 }
 
+// Map testnets to mainnet for reliable Uniswap quotes
+export function getQuoteChainId(chainId: number): number {
+  switch (chainId) {
+    case 11155111: // Sepolia
+    case 11155420: // Optimism Sepolia
+      return 1; // Use Ethereum mainnet for quotes
+    default:
+      return chainId;
+  }
+}
+
 // Re-export types
 export * from "./types.js";

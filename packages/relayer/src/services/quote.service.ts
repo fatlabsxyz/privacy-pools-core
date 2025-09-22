@@ -1,5 +1,6 @@
 import { Address } from "viem";
 import { quoteProvider, web3Provider } from "../providers/index.js";
+import { getQuoteChainId } from "../config/index.js";
 
 interface QuoteFeeBPSParams {
   chainId: number,
@@ -43,6 +44,7 @@ export class QuoteService {
 
   async quoteFeeBPSNative(quoteParams: QuoteFeeBPSParams): Promise<QuoteFee> {
     const { chainId, assetAddress, amountIn, baseFeeBPS, extraGas } = quoteParams;
+    // Gas price comes from execution chain, not quote chain
     const gasPrice = await web3Provider.getGasPrice(chainId);
 
     const EXTRA_GAS_AMOUNT = this.extraGasTxCost + this.extraGasFundAmount;
@@ -53,6 +55,7 @@ export class QuoteService {
     if (assetAddress.toLowerCase() === NativeAddress.toLowerCase()) {
       quote = { num: 1n, den: 1n, path: [] };
     } else {
+      // Price quotes use mainnet for testnets
       quote = await quoteProvider.quoteNativeTokenInERC20(chainId, assetAddress, amountIn);
     }
 

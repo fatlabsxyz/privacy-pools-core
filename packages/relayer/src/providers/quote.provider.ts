@@ -1,6 +1,6 @@
 import { Address, getAddress } from "viem";
 import { uniswapProvider } from "./index.js";
-import { FRAXUSD_ADDRESS, WOETH_ADDRESS } from "../config/index.js";
+import { FRAXUSD_ADDRESS, WOETH_ADDRESS, getQuoteChainId } from "../config/index.js";
 
 const USDC_ADDRESS = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 
@@ -28,14 +28,17 @@ export class QuoteProvider {
   }
 
   async quoteNativeTokenInERC20(chainId: number, addressIn: Address, amountIn: bigint): Promise<{ num: bigint, den: bigint, path: (string | number)[]; }> {
+    // Use mainnet for testnets to get reliable liquidity
+    const quoteChainId = getQuoteChainId(chainId);
+
     // XXX: if FRXUSD, use USDC quote but adjust for decimal difference
-    if (chainId === 1 && getAddress(addressIn) === getAddress(FRAXUSD_ADDRESS)) {
-      return this.quoteNativeTokenInFrax(chainId, addressIn, amountIn);
-    } else if (chainId === 1 && getAddress(addressIn) === getAddress(WOETH_ADDRESS)) {
-      return this.quoteNativeTokenInWoeth(chainId, addressIn, amountIn);
+    if (quoteChainId === 1 && getAddress(addressIn) === getAddress(FRAXUSD_ADDRESS)) {
+      return this.quoteNativeTokenInFrax(quoteChainId, addressIn, amountIn);
+    } else if (quoteChainId === 1 && getAddress(addressIn) === getAddress(WOETH_ADDRESS)) {
+      return this.quoteNativeTokenInWoeth(quoteChainId, addressIn, amountIn);
     }
 
-    const { in: in_, out, path } = (await uniswapProvider.quoteNativeToken(chainId, addressIn, amountIn))!;
+    const { in: in_, out, path } = (await uniswapProvider.quoteNativeToken(quoteChainId, addressIn, amountIn))!;
     return { num: out.amount, den: in_.amount, path };
   }
 

@@ -122,3 +122,26 @@ export function isFeeReceiverSameAsSigner(chainId: number) {
 export function isNative(asset: `0x${string}`) {
   return asset.toLowerCase() === "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 }
+
+export function isWeth(asset: `0x${string}`, chainId: number) {
+  /// XXX: move to config
+  const chainIdToWETH: Record<number, `0x${string}`> = {
+    1: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    10: "0x4200000000000000000000000000000000000006"
+  };
+
+  const weth = chainIdToWETH[chainId];
+
+  if (weth === undefined) {
+    throw ValidationError.invalidInput({
+      details: `chain id ${chainId} not supported`,
+    });
+  }
+
+  return weth.toLowerCase() === asset.toLowerCase();
+}
+
+export function isQuotable(asset: `0x${string}`, chainId: number) {
+  return !(isWeth(asset, chainId) || isNative(asset));
+}
+

@@ -5,7 +5,7 @@ import { QuoterError } from "../../exceptions/base.exception.js";
 import { web3Provider } from "../../providers/index.js";
 import { quoteService } from "../../services/index.js";
 import { QuoteMarshall } from "../../types.js";
-import { encodeWithdrawalData, isFeeReceiverSameAsSigner, isNative } from "../../utils.js";
+import { encodeWithdrawalData, isFeeReceiverSameAsSigner, isQuotable } from "../../utils.js";
 import { privateKeyToAccount } from "viem/accounts";
 import { QuoteFee } from "../../services/quote.service.js";
 
@@ -29,7 +29,7 @@ export async function relayQuoteHandler(
   if (config === undefined)
     return next(QuoterError.assetNotSupported(`Asset ${asset} for chain ${chainId} is not supported`));
 
-  if (isNative(asset)) {
+  if (!isQuotable(asset, chainId)) {
     extraGas = false;
   }
 

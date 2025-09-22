@@ -21,7 +21,7 @@ import {
 import { db, SdkProvider, UniswapProvider, web3Provider } from "../providers/index.js";
 import { RelayerDatabase } from "../types/db.types.js";
 import { SdkProviderInterface } from "../types/sdk.types.js";
-import { decodeWithdrawalData, isFeeReceiverSameAsSigner, isNative, isViemError, parseSignals } from "../utils.js";
+import { decodeWithdrawalData, isFeeReceiverSameAsSigner, isNative, isQuotable, isViemError, parseSignals } from "../utils.js";
 import { quoteService } from "./index.js";
 import { Web3Provider } from "../providers/web3.provider.js";
 import { FeeCommitment } from "../interfaces/relayer/common.js";
@@ -142,7 +142,8 @@ export class PrivacyPoolRelayer {
   async swapForNativeAndFund(scope: bigint, withdrawal: Withdrawal, proof: WithdrawalProof, chainId: number, relayTx: string) {
 
     const { assetAddress } = await this.sdkProvider.scopeData(scope, chainId);
-    if (isNative(assetAddress)) {
+    // XXX: WETH should be able to give you extra gas
+    if (!isQuotable(assetAddress, chainId)) {
       // we shouldn't be here
       return;
     }

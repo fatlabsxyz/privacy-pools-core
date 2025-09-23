@@ -445,9 +445,9 @@ export class ContractInteractionsService implements ContractInteractions {
         },
       };
     } catch (error) {
-      console.error("Transaction Execution Error:", { error, request });
-      throw new Error(
-        `Transaction failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      throw ContractError.executionFailed(
+        "transaction execution",
+        error instanceof Error ? error : new Error("Unknown error"),
       );
     }
   }
@@ -636,9 +636,9 @@ export class ContractInteractionsService implements ContractInteractions {
 
       return maxFeeBPS as bigint;
     } catch (error) {
-      console.error("Read Contract Error:", { error });
-      throw new Error(
-        `Failed to read MAX_RELAY_FEE_BPS: ${error instanceof Error ? error.message : "Unknown error"}`,
+      throw ContractError.executionFailed(
+        "read MAX_RELAY_FEE_BPS",
+        error instanceof Error ? error : new Error("Unknown error"),
       );
     }
   }

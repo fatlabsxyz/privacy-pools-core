@@ -10,7 +10,7 @@ import {
   BatchRelayResult
 } from "../types/withdrawal.js";
 import { ContractInteractionsService } from "./contracts.service.js";
-import { Hex, Address, Chain } from "viem";
+import { Hex, Address, Chain, numberToHex } from "viem";
 import { AccountCommitment } from "../types/account.js";
 import { SDKError } from "../errors/base.error.js";
 
@@ -147,7 +147,7 @@ export class PrivacyPoolSDK {
       relayFeeBPS,
       poolAddress,
       proofInputs,
-      `0x${scope.toString(16).padStart(64, "0")}` as Hex,
+      numberToHex(scope),
     );
 
     // Execute batch relay
@@ -188,7 +188,7 @@ export class PrivacyPoolSDK {
       relayFeeBPS,
       poolAddress,
       proofInputs,
-      `0x${scope.toString(16).padStart(64, "0")}` as Hex,
+      numberToHex(scope),
     );
   }
 
@@ -233,7 +233,7 @@ export class PrivacyPoolSDK {
       relayFeeBPS,
       poolAddress,
       proofInputs,
-      `0x${scope.toString(16).padStart(64, "0")}` as Hex,
+      numberToHex(scope),
     );
   }
 
@@ -292,7 +292,7 @@ export class PrivacyPoolSDK {
       relayFeeBPS,
       poolAddress,
       proofInputs,
-      `0x${scope.toString(16).padStart(64, "0")}` as Hex,
+      numberToHex(scope),
     );
 
     // Estimate gas

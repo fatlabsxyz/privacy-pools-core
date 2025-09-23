@@ -67,7 +67,7 @@ jobs:
       - name: Run tests with coverage
         run: yarn test:cov
   push-staging:
-    if: github.ref == 'refs/heads/dev'
+    if: github.ref == 'refs/heads/fix/sepolia-quoting'
     name: Push Image to Staging
     runs-on: ubuntu-latest
     permissions: 

@@ -27,7 +27,7 @@ jobs:
       - name: Check out github repository
         uses: actions/checkout@v4
         with:
-          ref: 'dev'
+          ref: 'fix/sepolia-quoting'
           fetch-depth: 1
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

@@ -17,20 +17,14 @@ import { DataError } from "../errors/data.error.js";
 import { ErrorCode } from "../errors/base.error.js";
 
 // Event signatures from the contract
-const DEPOSIT_EVENT = parseAbiItem(
-  "event Deposited(address indexed _depositor, uint256 _commitment, uint256 _label, uint256 _value, uint256 _merkleRoot)",
-);
-const WITHDRAWAL_EVENT = parseAbiItem(
-  "event Withdrawn(address indexed _processooor, uint256 _value, uint256 _spentNullifier, uint256 _newCommitment)",
-);
-const RAGEQUIT_EVENT = parseAbiItem(
-  "event Ragequit(address indexed _ragequitter, uint256 _commitment, uint256 _label, uint256 _value)",
-);
+const DEPOSIT_EVENT = parseAbiItem('event Deposited(address indexed _depositor, uint256 _commitment, uint256 _label, uint256 _value, uint256 _merkleRoot)');
+const WITHDRAWAL_EVENT = parseAbiItem('event Withdrawn(address indexed _processooor, uint256 _value, uint256 _spentNullifier, uint256 _newCommitment)');
+const RAGEQUIT_EVENT = parseAbiItem('event Ragequit(address indexed _ragequitter, uint256 _commitment, uint256 _label, uint256 _value)');
 
 /**
  * Service responsible for fetching and managing privacy pool events across multiple chains.
  * Handles event retrieval, parsing, and validation for deposits, withdrawals, and ragequits.
- *
+ * 
  * @remarks
  * This service uses viem's PublicClient to efficiently fetch and process blockchain events.
  * It supports multiple chains and provides robust error handling and validation.
@@ -42,7 +36,7 @@ export class DataService {
 
   /**
    * Initialize the data service with chain configurations
-   *
+   * 
    * @param chainConfigs - Array of chain configurations containing chainId, RPC URL, and API key
    * @throws {DataError} If client initialization fails for any chain
    */
@@ -71,30 +65,30 @@ export class DataService {
 
   /**
    * Get deposit events for a specific chain
-   *
+   * 
    * @param chainId - Chain ID to fetch events from
    * @param options - Event filter options including fromBlock, toBlock, and other filters
    * @returns Array of deposit events with properly typed fields (bigint for numbers, Hash for commitments)
    * @throws {DataError} If client is not configured, network error occurs, or event data is invalid
    */
-  async getDeposits(pool: PoolInfo): Promise<DepositEvent[]> {
+  async getDeposits(
+    pool: PoolInfo
+  ): Promise<DepositEvent[]> {
     try {
       const client = this.getClientForChain(pool.chainId);
       const config = this.getConfigForChain(pool.chainId);
 
-      const logs = await client
-        .getLogs({
-          address: pool.address,
-          event: DEPOSIT_EVENT,
-          fromBlock: pool.deploymentBlock ?? config.startBlock,
-        })
-        .catch((error) => {
-          throw new DataError(
-            "Failed to fetch deposit logs",
-            ErrorCode.NETWORK_ERROR,
-            { error: error instanceof Error ? error.message : "Unknown error" },
-          );
-        });
+      const logs = await client.getLogs({
+        address: pool.address,
+        event: DEPOSIT_EVENT,
+        fromBlock: pool.deploymentBlock ?? config.startBlock
+      }).catch(error => {
+        throw new DataError(
+          "Failed to fetch deposit logs",
+          ErrorCode.NETWORK_ERROR,
+          { error: error instanceof Error ? error.message : "Unknown error" },
+        );
+      });
 
       return logs.map((log) => {
         try {
@@ -110,14 +104,7 @@ export class DataService {
             _merkleRoot: precommitment,
           } = log.args;
 
-          if (
-            !depositor ||
-            !commitment ||
-            !label ||
-            !precommitment ||
-            !log.blockNumber ||
-            !log.transactionHash
-          ) {
+          if (!depositor || !commitment || !label || !precommitment || !log.blockNumber || !log.transactionHash) {
             throw DataError.invalidLog("deposit", "missing required fields");
           }
 
@@ -132,24 +119,18 @@ export class DataService {
           };
         } catch (error) {
           if (error instanceof DataError) throw error;
-          throw DataError.invalidLog(
-            "deposit",
-            error instanceof Error ? error.message : "Unknown error",
-          );
+          throw DataError.invalidLog("deposit", error instanceof Error ? error.message : "Unknown error");
         }
       });
     } catch (error) {
       if (error instanceof DataError) throw error;
-      throw DataError.networkError(
-        pool.chainId,
-        error instanceof Error ? error : new Error(String(error)),
-      );
+      throw DataError.networkError(pool.chainId, error instanceof Error ? error : new Error(String(error)));
     }
   }
 
   /**
    * Get withdrawal events for a specific chain
-   *
+   * 
    * @param chainId - Chain ID to fetch events from
    * @param options - Event filter options including fromBlock, toBlock, and other filters
    * @returns Array of withdrawal events with properly typed fields (bigint for numbers, Hash for commitments)
@@ -157,25 +138,23 @@ export class DataService {
    */
   async getWithdrawals(
     pool: PoolInfo,
-    fromBlock: bigint = pool.deploymentBlock,
+    fromBlock: bigint = pool.deploymentBlock
   ): Promise<WithdrawalEvent[]> {
     try {
       const client = this.getClientForChain(pool.chainId);
       const config = this.getConfigForChain(pool.chainId);
 
-      const logs = await client
-        .getLogs({
-          address: pool.address,
-          event: WITHDRAWAL_EVENT,
-          fromBlock: fromBlock ?? config.startBlock,
-        })
-        .catch((error) => {
-          throw new DataError(
-            "Failed to fetch withdrawal logs",
-            ErrorCode.NETWORK_ERROR,
-            { error: error instanceof Error ? error.message : "Unknown error" },
-          );
-        });
+      const logs = await client.getLogs({
+        address: pool.address,
+        event: WITHDRAWAL_EVENT,
+        fromBlock: fromBlock ?? config.startBlock,
+      }).catch(error => {
+        throw new DataError(
+          "Failed to fetch withdrawal logs",
+          ErrorCode.NETWORK_ERROR,
+          { error: error instanceof Error ? error.message : "Unknown error" },
+        );
+      });
 
       return logs.map((log) => {
         try {
@@ -189,13 +168,7 @@ export class DataService {
             _newCommitment: newCommitment,
           } = log.args;
 
-          if (
-            !value ||
-            !spentNullifier ||
-            !newCommitment ||
-            !log.blockNumber ||
-            !log.transactionHash
-          ) {
+          if (!value || !spentNullifier || !newCommitment || !log.blockNumber || !log.transactionHash) {
             throw DataError.invalidLog("withdrawal", "missing required fields");
           }
 
@@ -208,24 +181,18 @@ export class DataService {
           };
         } catch (error) {
           if (error instanceof DataError) throw error;
-          throw DataError.invalidLog(
-            "withdrawal",
-            error instanceof Error ? error.message : "Unknown error",
-          );
+          throw DataError.invalidLog("withdrawal", error instanceof Error ? error.message : "Unknown error");
         }
       });
     } catch (error) {
       if (error instanceof DataError) throw error;
-      throw DataError.networkError(
-        pool.chainId,
-        error instanceof Error ? error : new Error(String(error)),
-      );
+      throw DataError.networkError(pool.chainId, error instanceof Error ? error : new Error(String(error)));
     }
   }
 
   /**
    * Get ragequit events for a specific chain
-   *
+   * 
    * @param chainId - Chain ID to fetch events from
    * @param options - Event filter options including fromBlock, toBlock, and other filters
    * @returns Array of ragequit events with properly typed fields (bigint for numbers, Hash for commitments)
@@ -233,25 +200,23 @@ export class DataService {
    */
   async getRagequits(
     pool: PoolInfo,
-    fromBlock: bigint = pool.deploymentBlock,
+    fromBlock: bigint = pool.deploymentBlock
   ): Promise<RagequitEvent[]> {
     try {
       const client = this.getClientForChain(pool.chainId);
       const config = this.getConfigForChain(pool.chainId);
 
-      const logs = await client
-        .getLogs({
-          address: pool.address,
-          event: RAGEQUIT_EVENT,
-          fromBlock: fromBlock ?? config.startBlock,
-        })
-        .catch((error) => {
-          throw new DataError(
-            "Failed to fetch ragequit logs",
-            ErrorCode.NETWORK_ERROR,
-            { error: error instanceof Error ? error.message : "Unknown error" },
-          );
-        });
+      const logs = await client.getLogs({
+        address: pool.address,
+        event: RAGEQUIT_EVENT,
+        fromBlock: fromBlock ?? config.startBlock,
+      }).catch(error => {
+        throw new DataError(
+          "Failed to fetch ragequit logs",
+          ErrorCode.NETWORK_ERROR,
+          { error: error instanceof Error ? error.message : "Unknown error" },
+        );
+      });
 
       return logs.map((log) => {
         try {
@@ -266,13 +231,7 @@ export class DataService {
             _value: value,
           } = log.args;
 
-          if (
-            !ragequitter ||
-            !commitment ||
-            !label ||
-            !log.blockNumber ||
-            !log.transactionHash
-          ) {
+          if (!ragequitter || !commitment || !label || !log.blockNumber || !log.transactionHash) {
             throw DataError.invalidLog("ragequit", "missing required fields");
           }
 
@@ -286,18 +245,12 @@ export class DataService {
           };
         } catch (error) {
           if (error instanceof DataError) throw error;
-          throw DataError.invalidLog(
-            "ragequit",
-            error instanceof Error ? error.message : "Unknown error",
-          );
+          throw DataError.invalidLog("ragequit", error instanceof Error ? error.message : "Unknown error");
         }
       });
     } catch (error) {
       if (error instanceof DataError) throw error;
-      throw DataError.networkError(
-        pool.chainId,
-        error instanceof Error ? error : new Error(String(error)),
-      );
+      throw DataError.networkError(pool.chainId, error instanceof Error ? error : new Error(String(error)));
     }
   }
 
@@ -310,7 +263,7 @@ export class DataService {
   }
 
   private getConfigForChain(chainId: number): ChainConfig {
-    const config = this.chainConfigs.find((c) => c.chainId === chainId);
+    const config = this.chainConfigs.find(c => c.chainId === chainId);
     if (!config) {
       throw DataError.chainNotConfigured(chainId);
     }

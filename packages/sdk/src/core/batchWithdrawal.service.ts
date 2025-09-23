@@ -282,11 +282,6 @@ export class BatchWithdrawalService {
       throw BatchRelayError.invalidInput("First proof is undefined");
     }
 
-    //    // Validate first proof has exactly 8 public signals (required by contract)
-    //    if (firstProof.publicSignals.length !== 8) {
-    //      throw BatchRelayError.invalidInput(`First proof must have exactly 8 public signals, got ${firstProof.publicSignals.length}`);
-    //    }
-    //
     const firstContext = firstProof.publicSignals[7]; // context is at index 7 (based on circuit)
     for (let i = 1; i < proofs.length; i++) {
       const currentProof = proofs[i];

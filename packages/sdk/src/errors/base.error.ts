@@ -52,6 +52,17 @@ export class SDKError extends Error {
       stack: this.stack,
     };
   }
+
+  /**
+   * Creates an error for service initialization failures.
+   */
+  public static serviceNotInitialized(serviceName: string): SDKError {
+    return new SDKError(
+      `${serviceName} service not initialized. Call createContractInstance first.`,
+      ErrorCode.OPERATION_FAILED,
+      { serviceName }
+    );
+  }
 }
 
 /**
@@ -110,7 +121,7 @@ export class ContractError extends SDKError {
     code: ErrorCode = ErrorCode.CONTRACT_ERROR,
     details?: Record<string, unknown>,
   ) {
-    super(message, code);
+    super(message, code, details);
     this.name = "ContractError";
   }
 
@@ -122,4 +133,35 @@ export class ContractError extends SDKError {
     return new ContractError(`Asset ${address} has no pool`, ErrorCode.CONTRACT_ERROR);
   }
 
+  public static invalidProcessooor(expected: string, actual: string): ContractError {
+    return new ContractError(
+      `Invalid processooor: expected ${expected}, got ${actual}`,
+      ErrorCode.CONTRACT_ERROR,
+      { expected, actual }
+    );
+  }
+
+  public static eventNotFound(eventName: string): ContractError {
+    return new ContractError(
+      `${eventName} event not found in transaction receipt`,
+      ErrorCode.CONTRACT_ERROR,
+      { eventName }
+    );
+  }
+
+  public static executionFailed(operation: string, originalError: Error): ContractError {
+    return new ContractError(
+      `Failed to execute ${operation}: ${originalError.message}`,
+      ErrorCode.CONTRACT_ERROR,
+      { operation, originalError: originalError.message }
+    );
+  }
+
+  public static gasEstimationFailed(originalError: Error): ContractError {
+    return new ContractError(
+      `Failed to estimate gas: ${originalError.message}`,
+      ErrorCode.CONTRACT_ERROR,
+      { originalError: originalError.message }
+    );
+  }
 }

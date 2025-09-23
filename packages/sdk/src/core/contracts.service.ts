@@ -26,6 +26,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { CommitmentProof, Hash } from "../types/commitment.js";
 import { bigintToHex } from "../crypto.js";
 import { ContractError } from "../errors/base.error.js";
+import { BatchRelayError } from "../errors/batchRelay.error.js";
 import { decodeBatchRelayData } from "../utils/batchRelayEncoder.js";
 
 export class ContractInteractionsService implements ContractInteractions {
@@ -465,65 +466,30 @@ export class ContractInteractionsService implements ContractInteractions {
     withdrawal: Withdrawal,
     proofs: WithdrawalProof[],
   ): Promise<BatchRelayResult> {
-    console.log("🔍 DEBUG batchRelay - Input proofs received:", {
-      proofsType: typeof proofs,
-      proofsIsArray: Array.isArray(proofs),
-      proofsLength: proofs?.length || "no length",
-      proofsStructure: proofs?.map((proof, i) => ({
-        index: i,
-        proofType: typeof proof,
-        proofIsNull: proof === null,
-        proofIsUndefined: proof === undefined,
-        proofKeys: proof ? Object.keys(proof) : "proof is null or undefined",
-        hasProofProperty: proof && "proof" in proof,
-        hasPublicSignals: proof && "publicSignals" in proof,
-      })),
-    });
-
     // Validate inputs
     if (withdrawal.processooor !== batchRelayerAddress) {
-      throw new Error(
-        `Invalid processooor: expected ${batchRelayerAddress}, got ${withdrawal.processooor}`,
+      throw ContractError.invalidProcessooor(
+        batchRelayerAddress,
+        withdrawal.processooor,
       );
     }
 
     // Decode and validate BatchRelayData
     const batchRelayData = decodeBatchRelayData(withdrawal.data);
     if (batchRelayData.batchSize !== proofs.length) {
-      throw new Error(
-        `Batch size mismatch: expected ${batchRelayData.batchSize}, got ${proofs.length} proofs`,
+      throw BatchRelayError.invalidBatchSize(
+        batchRelayData.batchSize,
+        proofs.length,
       );
     }
 
     try {
-      console.log("🔍 DEBUG batchRelay - About to format proofs...");
       // Format all proofs
       const formattedProofs = proofs.map((proof, index) => {
-        console.log(`🔍 DEBUG batchRelay - Formatting proof ${index + 1}:`, {
-          proofType: typeof proof,
-          proofIsNull: proof === null,
-          proofIsUndefined: proof === undefined,
-          proofKeys: proof ? Object.keys(proof) : "proof is null or undefined",
-        });
         if (!proof) {
-          throw new Error(`Proof ${index + 1} is null or undefined`);
+          throw BatchRelayError.invalidInput(`Proof ${index + 1} is null or undefined`);
         }
         return this.formatProof(proof);
-      });
-
-      console.log("🔧 DEBUG batchRelay - Final formattedProofs before viem:", {
-        formattedProofsType: typeof formattedProofs,
-        formattedProofsArray: Array.isArray(formattedProofs),
-        formattedProofsLength: formattedProofs?.length,
-        formattedProofsStructure: formattedProofs?.map((proof, i) => ({
-          index: i,
-          proofType: typeof proof,
-          proofIsNull: proof === null,
-          proofIsUndefined: proof === undefined,
-          proofKeys: proof ? Object.keys(proof) : "proof is null or undefined",
-          hasPaProperty: proof && "pA" in proof,
-          pAValue: proof?.pA,
-        })),
       });
 
       // Simulate the contract call
@@ -560,7 +526,7 @@ export class ContractInteractionsService implements ContractInteractions {
         .find((event) => event?.eventName === "BatchRelayed");
 
       if (!batchRelayedEvent) {
-        throw new Error("BatchRelayed event not found in transaction receipt");
+        throw ContractError.eventNotFound("BatchRelayed");
       }
 
       const amountAfterFees = batchRelayedEvent.args._amountAfterFees as bigint;
@@ -580,8 +546,9 @@ export class ContractInteractionsService implements ContractInteractions {
         batchRelayerAddress,
         poolAddress,
       });
-      throw new Error(
-        `Failed to execute batch relay: ${error instanceof Error ? error.message : "Unknown error"}`,
+      throw ContractError.executionFailed(
+        "batch relay",
+        error instanceof Error ? error : new Error("Unknown error"),
       );
     }
   }
@@ -596,22 +563,9 @@ export class ContractInteractionsService implements ContractInteractions {
     proofs: WithdrawalProof[],
   ): Promise<bigint> {
     try {
-      console.log("🔍 DEBUG estimateBatchRelayGas - Input proofs:", {
-        proofsType: typeof proofs,
-        proofsIsArray: Array.isArray(proofs),
-        proofsLength: proofs?.length || "no length",
-        proofsStructure: proofs?.map((proof, i) => ({
-          index: i,
-          proofType: typeof proof,
-          proofIsNull: proof === null,
-          proofIsUndefined: proof === undefined,
-          proofKeys: proof ? Object.keys(proof) : "proof is null or undefined",
-        })),
-      });
-
       const formattedProofs = proofs.map((proof, index) => {
         if (!proof) {
-          throw new Error(
+          throw BatchRelayError.invalidInput(
             `EstimateGas: Proof ${index + 1} is null or undefined`,
           );
         }
@@ -629,8 +583,8 @@ export class ContractInteractionsService implements ContractInteractions {
       return gas;
     } catch (error) {
       console.error("Gas Estimation Error:", { error });
-      throw new Error(
-        `Failed to estimate gas: ${error instanceof Error ? error.message : "Unknown error"}`,
+      throw ContractError.gasEstimationFailed(
+        error instanceof Error ? error : new Error("Unknown error"),
       );
     }
   }
@@ -645,22 +599,9 @@ export class ContractInteractionsService implements ContractInteractions {
     proofs: WithdrawalProof[],
   ): Promise<boolean> {
     try {
-      console.log("🔍 DEBUG simulateBatchRelay - Input proofs:", {
-        proofsType: typeof proofs,
-        proofsIsArray: Array.isArray(proofs),
-        proofsLength: proofs?.length || "no length",
-        proofsStructure: proofs?.map((proof, i) => ({
-          index: i,
-          proofType: typeof proof,
-          proofIsNull: proof === null,
-          proofIsUndefined: proof === undefined,
-          proofKeys: proof ? Object.keys(proof) : "proof is null or undefined",
-        })),
-      });
-
       const formattedProofs = proofs.map((proof, index) => {
         if (!proof) {
-          throw new Error(
+          throw BatchRelayError.invalidInput(
             `SimulateBatch: Proof ${index + 1} is null or undefined`,
           );
         }

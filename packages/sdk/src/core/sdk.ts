@@ -12,6 +12,7 @@ import {
 import { ContractInteractionsService } from "./contracts.service.js";
 import { Hex, Address, Chain } from "viem";
 import { AccountCommitment } from "../types/account.js";
+import { SDKError } from "../errors/base.error.js";
 
 /**
  * Main SDK class providing access to all privacy pool functionality.
@@ -127,11 +128,11 @@ export class PrivacyPoolSDK {
     proofInputs: WithdrawalProofInput[]
   ): Promise<BatchRelayResult> {
     if (!this.batchWithdrawalService) {
-      throw new Error('BatchWithdrawal service not initialized. Call createContractInstance first.');
+      throw SDKError.serviceNotInitialized('BatchWithdrawal');
     }
 
     if (!this.contractsService) {
-      throw new Error('Contracts service not initialized. Call createContractInstance first.');
+      throw SDKError.serviceNotInitialized('Contracts');
     }
 
     // Get scope from pool address
@@ -169,15 +170,11 @@ export class PrivacyPoolSDK {
     proofInputs: WithdrawalProofInput[],
   ): Promise<BatchWithdrawalPayload> {
     if (!this.batchWithdrawalService) {
-      throw new Error(
-        "BatchWithdrawal service not initialized. Call createContractInstance first.",
-      );
+      throw SDKError.serviceNotInitialized('BatchWithdrawal');
     }
 
     if (!this.contractsService) {
-      throw new Error(
-        "Contracts service not initialized. Call createContractInstance first.",
-      );
+      throw SDKError.serviceNotInitialized('Contracts');
     }
 
     // Get scope from pool address
@@ -218,15 +215,11 @@ export class PrivacyPoolSDK {
     proofInputs: WithdrawalProofInput[],
   ): Promise<WithdrawalProof[]> {
     if (!this.batchWithdrawalService) {
-      throw new Error(
-        "BatchWithdrawal service not initialized. Call createContractInstance first.",
-      );
+      throw SDKError.serviceNotInitialized('BatchWithdrawal');
     }
 
     if (!this.contractsService) {
-      throw new Error(
-        "Contracts service not initialized. Call createContractInstance first.",
-      );
+      throw SDKError.serviceNotInitialized('Contracts');
     }
 
     // Get scope from pool address
@@ -257,9 +250,7 @@ export class PrivacyPoolSDK {
     payload: BatchWithdrawalPayload,
   ): Promise<BatchRelayResult> {
     if (!this.batchWithdrawalService) {
-      throw new Error(
-        "BatchWithdrawal service not initialized. Call createContractInstance first.",
-      );
+      throw SDKError.serviceNotInitialized('BatchWithdrawal');
     }
 
     // Delegate to SDK's batch withdrawal service for execution only
@@ -282,15 +273,11 @@ export class PrivacyPoolSDK {
     proofInputs: WithdrawalProofInput[],
   ): Promise<bigint> {
     if (!this.batchWithdrawalService) {
-      throw new Error(
-        "BatchWithdrawal service not initialized. Call createContractInstance first.",
-      );
+      throw SDKError.serviceNotInitialized('BatchWithdrawal');
     }
 
     if (!this.contractsService) {
-      throw new Error(
-        "Contracts service not initialized. Call createContractInstance first.",
-      );
+      throw SDKError.serviceNotInitialized('Contracts');
     }
 
     // Get scope from pool address

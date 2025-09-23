@@ -53,9 +53,16 @@ export class QuoteService {
     const extraGasDetail = extraGas ? { extraGasTxCost: this.extraGasTxCost, extraGasFundAmount: this.extraGasFundAmount } : undefined;
 
     let quote: { num: bigint, den: bigint; path: (string | number)[]; };
-    if (assetAddress.toLowerCase() === NativeAddress.toLowerCase() || isWeth(assetAddress, chainId)) {
+    const isNativeToken = assetAddress.toLowerCase() === NativeAddress.toLowerCase();
+    const isWethToken = isWeth(assetAddress as `0x${string}`, chainId);
+
+    console.log(`Quote check: asset=${assetAddress}, chainId=${chainId}, isNative=${isNativeToken}, isWeth=${isWethToken}`);
+
+    if (isNativeToken || isWethToken) {
+      console.log("Using 1:1 quote for native/WETH");
       quote = { num: 1n, den: 1n, path: [] };
     } else {
+      console.log("Using Uniswap quote");
       // Price quotes use mainnet for testnets
       quote = await quoteProvider.quoteNativeTokenInERC20(chainId, assetAddress, amountIn);
     }

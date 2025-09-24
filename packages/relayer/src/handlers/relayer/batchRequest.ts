@@ -85,7 +85,9 @@ function parseBatchWithdrawal(body: Request["body"]): { payload: BatchWithdrawal
       message: "Invalid request: batch size exceeds maximum of 255"
     });
   }
-  
+ 
+  // TODO ChainId is automatically set to sepolia even though we call it with id 1
+  // this happens only if sepolia is configured, should investigate
   // Parse chain ID
   const chainId = typeof batchBody.chainId === 'string' 
     ? parseInt(batchBody.chainId, 10) 

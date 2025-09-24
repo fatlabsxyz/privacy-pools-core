@@ -1,103 +1,40 @@
-import { Ajv } from "ajv";
-import { BatchRelayRequestBody } from "../../interfaces/relayer/batchRequest.js";
+import { z } from "zod";
+import { zFeeCommitment } from "../shared.schemes.js";
 
-const ajv = new Ajv();
+// proof payload schema
+const zProofPayload = z.object({
+  pi_a: z.array(z.string()).length(2),
+  pi_b: z.array(z.array(z.string()).length(2)).length(2),
+  pi_c: z.array(z.string()).length(2),
+});
 
-// Schema for proof payload
-const proofPayloadSchema = {
-  type: "object",
-  properties: {
-    pi_a: {
-      type: "array",
-      items: { type: "string" },
-      minItems: 2,
-      maxItems: 2,
-    },
-    pi_b: {
-      type: "array",
-      items: {
-        type: "array",
-        items: { type: "string" },
-        minItems: 2,
-        maxItems: 2,
-      },
-      minItems: 2,
-      maxItems: 2,
-    },
-    pi_c: {
-      type: "array",
-      items: { type: "string" },
-      minItems: 2,
-      maxItems: 2,
-    },
-  },
-  required: ["pi_a", "pi_b", "pi_c"],
-  additionalProperties: false,
+// individual proof in the array
+const zBatchProof = z.object({
+  publicSignals: z.array(z.string()).min(1),
+  proof: zProofPayload,
+});
+
+// withdrawal schema
+const zWithdrawal = z.object({
+  processooor: z.string(),
+  data: z.string(),
+});
+
+// main batch relay request body schema
+const zBatchRelayRequestBody = z.object({
+  withdrawal: zWithdrawal,
+  proofs: z.array(zBatchProof).min(1).max(255), // max batch size
+  poolAddress: z.string(),
+  chainId: z.union([z.string(), z.number()]),
+  feeCommitment: zFeeCommitment.optional(),
+});
+
+export const validateBatchRelayRequestBody = (data: unknown) => {
+  const result = zBatchRelayRequestBody.safeParse(data);
+  return {
+    success: result.success,
+    errors: result.success ? undefined : result.error.errors.map(err => ({ 
+      message: `${err.path.join('.')}: ${err.message}` 
+    }))
+  };
 };
-
-// Schema for individual proof in the array
-const batchProofSchema = {
-  type: "object",
-  properties: {
-    publicSignals: {
-      type: "array",
-      items: { type: "string" },
-      minItems: 1,
-    },
-    proof: proofPayloadSchema,
-  },
-  required: ["publicSignals", "proof"],
-  additionalProperties: false,
-};
-
-// Schema for withdrawal
-const withdrawalSchema = {
-  type: "object",
-  properties: {
-    processooor: { type: "string" },
-    data: { type: "string" },
-  },
-  required: ["processooor", "data"],
-  additionalProperties: false,
-};
-
-// Schema for fee commitment (optional)
-const feeCommitmentSchema = {
-  type: "object",
-  properties: {
-    relayFeeBPS: { type: "number" },
-    expiresAt: { type: "number" },
-    signature: { type: "string" },
-  },
-  required: ["relayFeeBPS", "expiresAt"],
-  additionalProperties: false,
-};
-
-// Main schema for batch relay request body  
-const batchRelayRequestBodySchema = {
-  type: "object",
-  properties: {
-    withdrawal: withdrawalSchema,
-    proofs: {
-      type: "array",
-      items: batchProofSchema,
-      minItems: 1,
-      maxItems: 255, // Max batch size
-    },
-    poolAddress: { type: "string" },
-    chainId: {
-      oneOf: [
-        { type: "string" },
-        { type: "number" },
-      ],
-    },
-    feeCommitment: feeCommitmentSchema,
-  },
-  required: ["withdrawal", "proofs", "poolAddress", "chainId"],
-  additionalProperties: false,
-};
-
-// Compile and export the validation function
-export const validateBatchRelayRequestBody = ajv.compile<BatchRelayRequestBody>(
-  batchRelayRequestBodySchema
-);

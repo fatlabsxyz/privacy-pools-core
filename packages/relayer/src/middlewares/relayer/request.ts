@@ -62,10 +62,10 @@ export function validateBatchRelayRequestMiddleware(
   res: Response,
   next: NextFunction,
 ) {
-  const isValid = validateBatchRelayRequestBody(req.body);
-  if (!isValid) {
+  const validation = validateBatchRelayRequestBody(req.body);
+  if (!validation.success) {
     const messages: string[] = [];
-    validateBatchRelayRequestBody.errors?.forEach(e => e?.message ? messages.push(e.message) : undefined);
+    validation.errors?.forEach(e => e?.message ? messages.push(e.message) : undefined);
     next(ValidationError.invalidInput({ message: messages.join("\n") }));
     return;
   }
@@ -78,10 +78,10 @@ export function validateBatchRelayQuoteMiddleware(
   res: Response,
   next: NextFunction,
 ) {
-  const isValid = validateBatchRelayQuoteBody(req.body);
-  if (!isValid) {
+  const validation = validateBatchRelayQuoteBody(req.body);
+  if (!validation.success) {
     const messages: string[] = [];
-    validateBatchRelayQuoteBody.errors?.forEach((e: ErrorObject) => e?.message ? messages.push(e.message) : undefined);
+    validation.errors?.forEach(e => e?.message ? messages.push(e.message) : undefined);
     next(ValidationError.invalidInput({ message: messages.join("\n") }));
     return;
   }

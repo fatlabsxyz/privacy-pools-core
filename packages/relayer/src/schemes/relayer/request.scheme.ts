@@ -1,59 +1,37 @@
-import { Ajv, JSONSchemaType } from "ajv";
-import { RelayRequestBody } from "../../interfaces/relayer/request.js";
+import { z } from "zod";
+import { zChainId, zFeeCommitment } from "../shared.schemes.js";
 
-// AJV schema for validation
-const ajv = new Ajv();
+const zWithdrawal = z.object({
+  processooor: z.string(),
+  data: z.string(),
+});
 
-const relayRequestSchema: JSONSchemaType<RelayRequestBody> = {
-  type: "object",
-  properties: {
-    withdrawal: {
-      type: "object",
-      properties: {
-        processooor: { type: "string" },
-        data: { type: "string", pattern: "0x[0-9a-fA-F]+" },
-      },
-      required: ["processooor", "data"],
-    },
-    publicSignals: {
-      type: "array",
-      items: { type: "string" },
-      minItems: 8,
-      maxItems: 8,
-    },
-    proof: {
-      type: "object",
-      properties: {
-        protocol: { type: "string" },
-        curve: { type: "string" },
-        pi_a: { type: "array", items: { type: "string" }, minItems: 1 },
-        pi_b: {
-          type: "array",
-          items: {
-            type: "array",
-            items: { type: "string" },
-            minItems: 1,
-          },
-          minItems: 1,
-        },
-        pi_c: { type: "array", items: { type: "string" }, minItems: 1 },
-      },
-      required: ["pi_a", "pi_b", "pi_c"],
-    },
-    scope: { type: "string" },
-    chainId: { type: ["string", "number"] },
-    feeCommitment: {
-      type: "object",
-      properties: {
-        expiration: { type: "number" },
-        withdrawalData: { type: "string", pattern: "0x[0-9a-fA-F]+" },
-        signedRelayerCommitment: { type: "string", pattern: "0x[0-9a-fA-F]+" }
-      },
-      nullable: true,
-      required: ["expiration", "signedRelayerCommitment"]
-    }
-  },
-  required: ["withdrawal", "proof", "publicSignals", "scope", "chainId"],
-} as const;
 
-export const validateRelayRequestBody = ajv.compile(relayRequestSchema);
+const zPublicSignals = z.array(z.string()).length(8);
+
+const zProof = z.object({
+  protocol: z.string().optional(),
+  curve: z.string().optional(),
+  pi_a: z.array(z.string()).min(1),
+  pi_b: z.array(z.array(z.string()).min(1)).min(1),
+  pi_c: z.array(z.string()).min(1),
+});
+
+const zRelayRequestSchema = z.object({
+  withdrawal: zWithdrawal,
+  publicSignals: zPublicSignals,
+  proof: zProof,
+  scope: z.string(),
+  chainId: zChainId,
+  feeCommitment: zFeeCommitment.optional(),
+});
+
+export const validateRelayRequestBody = (data: unknown) => {
+  const result = zRelayRequestSchema.safeParse(data);
+  return {
+    success: result.success,
+    errors: result.success ? undefined : result.error.errors.map(err => ({ 
+      message: `${err.path.join('.')}: ${err.message}` 
+    }))
+  };
+};

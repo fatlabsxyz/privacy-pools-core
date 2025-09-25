@@ -1,5 +1,4 @@
 import { NextFunction, Request, Response } from "express";
-import { ErrorObject } from "ajv";
 import { ValidationError } from "../../exceptions/base.exception.js";
 import { validateDetailsQuerystring } from "../../schemes/relayer/details.scheme.js";
 import { validateRelayRequestBody } from "../../schemes/relayer/request.scheme.js";
@@ -13,10 +12,10 @@ export function validateDetailsMiddleware(
   res: Response,
   next: NextFunction,
 ) {
-  const isValid = validateDetailsQuerystring(req.query);
-  if (!isValid) {
+  const validation = validateDetailsQuerystring(req.query);
+  if (!validation.success) {
     const messages: string[] = [];
-    validateDetailsQuerystring.errors?.forEach(e => e?.message ? messages.push(e.message) : undefined);
+    validation.errors?.forEach(e => e?.message ? messages.push(e.message) : undefined);
     next(ValidationError.invalidQuerystring({ message: messages.join("\n") }));
     return;
   }
@@ -29,10 +28,10 @@ export function validateRelayRequestMiddleware(
   res: Response,
   next: NextFunction,
 ) {
-  const isValid = validateRelayRequestBody(req.body);
-  if (!isValid) {
+  const validation = validateRelayRequestBody(req.body);
+  if (!validation.success) {
     const messages: string[] = [];
-    validateRelayRequestBody.errors?.forEach(e => e?.message ? messages.push(e.message) : undefined);
+    validation.errors?.forEach(e => e?.message ? messages.push(e.message) : undefined);
     next(ValidationError.invalidInput({ message: messages.join("\n") }));
     return;
   }
@@ -46,10 +45,10 @@ export function validateQuoteMiddleware(
   res: Response,
   next: NextFunction,
 ) {
-  const isValid = validateQuoteBody(req.body);
-  if (!isValid) {
+  const validation = validateQuoteBody(req.body);
+  if (!validation.success) {
     const messages: string[] = [];
-    validateQuoteBody.errors?.forEach(e => e?.message ? messages.push(e.message) : undefined);
+    validation.errors?.forEach(e => e?.message ? messages.push(e.message) : undefined);
     next(ValidationError.invalidInput({ message: messages.join("\n") }));
     return;
   }

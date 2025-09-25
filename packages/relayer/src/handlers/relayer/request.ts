@@ -59,7 +59,8 @@ function isChainSupported(chainId: number): boolean {
  * @throws {ConfigError} - If the chain is not supported.
  */
 function parseWithdrawal(body: Request["body"]): { payload: WithdrawalPayload, chainId: number } {
-  if (validateRelayRequestBody(body)) {
+  const validation = validateRelayRequestBody(body);
+  if (validation.success) {
     try {
       const payload = relayRequestBodyToWithdrawalPayload(body);
       const chainId = typeof body.chainId === 'string' ? parseInt(body.chainId, 10) : body.chainId;
@@ -86,7 +87,8 @@ function parseWithdrawal(body: Request["body"]): { payload: WithdrawalPayload, c
       });
     }
   } else {
-    throw ValidationError.invalidInput({ message: "Payload format error" });
+    const messages = validation.errors?.map(e => e.message).join(", ") || "Payload format error";
+    throw ValidationError.invalidInput({ message: messages });
   }
 }
 

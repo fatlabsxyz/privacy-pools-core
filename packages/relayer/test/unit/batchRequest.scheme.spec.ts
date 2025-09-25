@@ -20,8 +20,9 @@ describe("validateBatchRelayRequestBody", () => {
       poolAddress: "0x4567890123456789012345678901234567890123",
       chainId: 1,
       feeCommitment: {
-        relayFeeBPS: 100,
-        expiresAt: 1234567890
+        expiration: 1234567890,
+        withdrawalData: "0xabcdef123456",
+        signedRelayerCommitment: "0x123456789abcdef"
       }
     };
 

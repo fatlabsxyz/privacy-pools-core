@@ -3,6 +3,7 @@ import path from "node:path";
 import { ConfigError } from "../exceptions/base.exception.js";
 import { zConfig } from "./schemas.js";
 import { ChainConfig, AssetConfig } from "./types.js";
+import { Address, getAddress } from "viem";
 
 /**
  * Reads the configuration file from the path specified in the CONFIG_PATH environment variable
@@ -130,7 +131,7 @@ export function getAssetConfig(chainId: number, assetAddress: string): AssetConf
  * @returns {string} The batch relayer address
  * @throws {ConfigError} If batch relayer is not configured
  */
-export function getBatchRelayerAddress(chainId: number): string {
+export function getBatchRelayerAddress(chainId: number): Address {
   const chainConfig = getChainConfig(chainId);
   const address = chainConfig.batch_relayer_address || CONFIG.defaults.batch_relayer_address;
 
@@ -138,7 +139,7 @@ export function getBatchRelayerAddress(chainId: number): string {
     throw ConfigError.default(`Batch relayer address not configured for chain ${chainId}`);
   }
 
-  return address;
+  return getAddress(address);
 }
 
 /**

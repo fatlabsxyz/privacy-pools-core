@@ -28,6 +28,7 @@ import { bigintToHex } from "../crypto.js";
 import { ContractError } from "../errors/base.error.js";
 import { BatchRelayError } from "../errors/batchRelay.error.js";
 import { decodeBatchRelayData } from "../utils/batchRelayEncoder.js";
+import { BatchWithdrawalService } from "./batchWithdrawal.service.js";
 
 export class ContractInteractionsService implements ContractInteractions {
   private publicClient: PublicClient;
@@ -450,6 +451,10 @@ export class ContractInteractionsService implements ContractInteractions {
         error instanceof Error ? error : new Error("Unknown error"),
       );
     }
+  }
+
+  batch(batchRelayerAddress: Address): BatchWithdrawalService {
+    return new BatchWithdrawalService(batchRelayerAddress, this.publicClient, this.walletClient, this.account);
   }
 
   /**

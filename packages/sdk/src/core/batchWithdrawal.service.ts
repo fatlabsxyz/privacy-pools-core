@@ -1,6 +1,4 @@
-import { Address, type Hex } from "viem";
-import type { WithdrawalService } from "./withdrawal.service.js";
-import type { ContractInteractionsService } from "./contracts.service.js";
+import { Abi, Account, Address, decodeEventLog, PublicClient, WalletClient, type Hex } from "viem";
 import type {
   BatchWithdrawalPayload,
   Withdrawal,
@@ -14,11 +12,13 @@ import {
   encodeBatchRelayData,
   decodeBatchRelayData,
   validateBatchRelayData,
-  calculateBatchFees,
 } from "../utils/batchRelayEncoder.js";
 import { BatchRelayError } from "../errors/batchRelay.error.js";
-import { calculateContext } from "../crypto.js";
-import type { Hash } from "../types/commitment.js";
+import { bigintToHex, calculateContext } from "../crypto.js";
+import type { CommitmentProof, Hash } from "../types/commitment.js";
+import { calculateTotalAmount, calculateBatchAmounts } from "../utils/batchRelayUtils.js";
+import { ContractError } from "../errors/base.error.js";
+import { IBatchRelayerABI } from "../abi/IBatchRelayer.js";
 
 /**
  * Service for building and managing batch withdrawals
@@ -26,295 +26,47 @@ import type { Hash } from "../types/commitment.js";
  */
 export class BatchWithdrawalService {
   constructor(
-    private readonly withdrawalService: WithdrawalService,
-    private readonly contractsService: ContractInteractionsService,
-  ) {}
+    // XXX: sacar el WithdrawalService
+    // private readonly withdrawalService: WithdrawalService,
+    // private readonly contractsService: ContractInteractionsService,
+    readonly batchRelayerAddress: Address,
+    private readonly publicClient: PublicClient,
+    private readonly walletClient: WalletClient,
+    private readonly account: Account
+  ) { }
 
-  /**
-   * Build a batch withdrawal from multiple notes
-   * @param notes - Array of notes to withdraw
-   * @param batchRelayerAddress - Address of BatchRelayer contract
-   * @param recipient - Final recipient of funds
-   * @param feeRecipient - Address to receive fees
-   * @param relayFeeBPS - Fee in basis points
-   * @param poolAddress - Address of the privacy pool
-   * @param proofInputs - Array of proof inputs corresponding to each note
-   * @param scope - The pool scope for context calculation
-   * @returns BatchWithdrawalPayload ready for submission
-   */
-  async buildBatchWithdrawal(
-    notes: AccountCommitment[],
-    batchRelayerAddress: Address,
-    recipient: Address,
-    feeRecipient: Address,
-    relayFeeBPS: bigint,
-    poolAddress: Address,
-    proofInputs: WithdrawalProofInput[],
-    scope: Hex,
-  ): Promise<BatchWithdrawalPayload> {
-    // Validate inputs
-    if (notes.length === 0) {
-      throw BatchRelayError.emptyBatch();
-    }
-
-    if (notes.length !== proofInputs.length) {
-      throw BatchRelayError.invalidBatchSize(proofInputs.length, notes.length);
-    }
-
-    if (notes.length > 255) {
-      throw BatchRelayError.batchTooLarge(notes.length);
-    }
-
-    // Calculate total value from proof inputs
-    const totalValue = proofInputs.reduce(
-      (sum, input) => sum + input.withdrawalAmount,
-      0n,
-    );
-
-    // Create preliminary BatchRelayData (without final validation yet)
-    const batchRelayData: BatchRelayData = {
-      recipient,
-      feeRecipient,
-      relayFeeBPS,
-      batchSize: notes.length,
-      totalValue,
-    };
-
-    // Encode BatchRelayData
-    const encodedData = encodeBatchRelayData(batchRelayData);
-
-    // Create Withdrawal struct
-    const withdrawal: Withdrawal = {
-      processooor: batchRelayerAddress,
-      data: encodedData,
-    };
-
-    // Calculate the context that all proofs must share
-    // This context is calculated from the batch withdrawal struct and scope
-    const batchContext = calculateContext(withdrawal, BigInt(scope) as Hash);
-
-    // Generate proofs for each note with the correct batch context
-    const proofs: WithdrawalProof[] = [];
-    for (let i = 0; i < notes.length; i++) {
-      const note = notes[i];
-      const proofInput = proofInputs[i];
-      if (!note) {
-        throw BatchRelayError.invalidInput(`Note at index ${i} is undefined`);
-      }
-      if (!proofInput) {
-        throw BatchRelayError.invalidInput(
-          `Proof input at index ${i} is undefined`,
-        );
-      }
-
-      // Create proof input with the correct batch context
-      // This ensures the proof is generated with the right context from the start
-      // The context gets embedded in the proof's public signals during proving
-      const batchProofInput: WithdrawalProofInput = {
-        ...proofInput,
-        context: BigInt(batchContext),
-      };
-
-      const proof = await this.withdrawalService.proveWithdrawal(
-        note,
-        batchProofInput,
-      );
-      proofs.push(proof);
-    }
-
-    // Now validate everything after proof generation
-    validateBatchRelayData(batchRelayData);
-
-    // Check fee against max if possible
-    try {
-      const maxFeeBPS =
-        await this.contractsService.getMaxRelayFeeBPS(batchRelayerAddress);
-      if (relayFeeBPS > maxFeeBPS) {
-        throw BatchRelayError.feeTooHigh(relayFeeBPS, maxFeeBPS);
-      }
-    } catch (error) {
-      // If it's our specific error, re-throw it
-      if (error instanceof BatchRelayError) {
-        throw error;
-      }
-      // Otherwise ignore - contract might not be deployed yet
-    }
-
-    // Verify all proofs have matching context (withdrawal hash) and exactly 8 public signals
-    if (proofs.length === 0) {
-      throw BatchRelayError.invalidInput("No proofs generated");
-    }
-    const firstProof = proofs[0];
-    if (!firstProof) {
-      throw BatchRelayError.invalidInput("First proof is undefined");
-    }
-
-    // Validate first proof has exactly 8 public signals (required by contract)
-    if (firstProof.publicSignals.length !== 8) {
-      throw BatchRelayError.invalidInput(
-        `First proof must have exactly 8 public signals, got ${firstProof.publicSignals.length}`,
-      );
-    }
-
-    const firstContext = firstProof.publicSignals[7]; // context is at index 7 (based on circuit)
-    for (let i = 1; i < proofs.length; i++) {
-      const currentProof = proofs[i];
-      if (!currentProof) {
-        throw BatchRelayError.invalidInput(`Proof at index ${i} is undefined`);
-      }
-
-      // Validate each proof has exactly 8 public signals (required by contract)
-      if (currentProof.publicSignals.length !== 8) {
-        throw BatchRelayError.invalidInput(
-          `Proof at index ${i} must have exactly 8 public signals, got ${currentProof.publicSignals.length}`,
-        );
-      }
-
-      if (currentProof.publicSignals[7] !== firstContext) {
-        throw BatchRelayError.contextMismatch(i);
-      }
-    }
-
-    return {
-      withdrawal,
-      proofs,
-      poolAddress,
-    };
-  }
-
-  /**
-   * Generate proofs for batch withdrawal with correct batch context
-   * This is the recommended way to generate proofs for batch relay operations
-   *
-   * @param notes - Array of notes to withdraw
-   * @param batchRelayerAddress - Address of BatchRelayer contract
-   * @param recipient - Final recipient of funds
-   * @param feeRecipient - Address to receive fees
-   * @param relayFeeBPS - Fee in basis points
-   * @param poolAddress - Address of the privacy pool
-   * @param proofInputs - Array of proof inputs (contexts will be overridden with batch context)
-   * @param scope - The pool scope for context calculation
-   * @returns Array of correctly proven withdrawal proofs for batch relay
-   */
-  async proveBatchWithdrawal(
-    notes: AccountCommitment[],
-    batchRelayerAddress: Address,
-    recipient: Address,
-    feeRecipient: Address,
-    relayFeeBPS: bigint,
-    poolAddress: Address,
-    proofInputs: WithdrawalProofInput[],
-    scope: Hex,
-  ): Promise<WithdrawalProof[]> {
-    // Validate inputs
-    if (notes.length === 0) {
-      throw BatchRelayError.emptyBatch();
-    }
-
-    if (notes.length !== proofInputs.length) {
-      throw BatchRelayError.invalidBatchSize(proofInputs.length, notes.length);
-    }
-
-    if (notes.length > 255) {
-      throw BatchRelayError.batchTooLarge(notes.length);
-    }
-
-    // Calculate total value from proof inputs
-    const totalValue = proofInputs.reduce(
-      (sum, input) => sum + input.withdrawalAmount,
-      0n,
-    );
-
-    // Create BatchRelayData
-    const batchRelayData: BatchRelayData = {
-      recipient,
-      feeRecipient,
-      relayFeeBPS,
-      batchSize: notes.length,
-      totalValue,
-    };
-
-    // Encode BatchRelayData
-    const encodedData = encodeBatchRelayData(batchRelayData);
-
-    // Create Withdrawal struct
-    const withdrawal: Withdrawal = {
-      processooor: batchRelayerAddress,
-      data: encodedData,
-    };
-
-    // Calculate the batch context that all proofs must share
-    const batchContext = calculateContext(withdrawal, BigInt(scope) as Hash);
-
-    // Generate proofs for each note with the correct batch context
-    const proofs: WithdrawalProof[] = [];
-    for (let i = 0; i < notes.length; i++) {
-      const note = notes[i];
-      const proofInput = proofInputs[i];
-      if (!note) {
-        throw BatchRelayError.invalidInput(`Note at index ${i} is undefined`);
-      }
-      if (!proofInput) {
-        throw BatchRelayError.invalidInput(
-          `Proof input at index ${i} is undefined`,
-        );
-      }
-
-      const batchProofInput: WithdrawalProofInput = {
-        ...proofInput,
-        context: BigInt(batchContext),
-      };
-
-      const proof = await this.withdrawalService.proveWithdrawal(
-        note,
-        batchProofInput,
-      );
-      proofs.push(proof);
-    }
-
-    // Verify all proofs have matching context and exactly 8 public signals
-    if (proofs.length === 0) {
-      throw BatchRelayError.invalidInput("No proofs generated");
-    }
-
-    const firstProof = proofs[0];
-    if (!firstProof) {
-      throw BatchRelayError.invalidInput("First proof is undefined");
-    }
-
-    const firstContext = firstProof.publicSignals[7]; // context is at index 7 (based on circuit)
-    for (let i = 1; i < proofs.length; i++) {
-      const currentProof = proofs[i];
-      if (!currentProof) {
-        throw BatchRelayError.invalidInput(`Proof at index ${i} is undefined`);
-      }
-
-      // Validate each proof has exactly 8 public signals (required by contract)
-      if (currentProof.publicSignals.length !== 8) {
-        throw BatchRelayError.invalidInput(
-          `Proof at index ${i} must have exactly 8 public signals, got ${currentProof.publicSignals.length}`,
-        );
-      }
-
-      if (currentProof.publicSignals[7] !== firstContext) {
-        throw BatchRelayError.contextMismatch(i);
-      }
-    }
-
-    return proofs;
-  }
+  //  // matarlo - dejar uno solo 
+  //  async buildBatchWithdrawal(
+  //    notes: AccountCommitment[],
+  //    recipient: Address,
+  //    feeRecipient: Address,
+  //    relayFeeBPS: bigint,
+  //    poolAddress: Address,
+  //    proofInputs: WithdrawalProofInput[],
+  //    scope: Hex,
+  //  ): Promise<BatchWithdrawalPayload> {
+  //  // XXX: mover a root de sdk, no service de batch
+  //  async proveBatchWithdrawal(
+  //    notes: AccountCommitment[],
+  //    batchRelayerAddress: Address,
+  //    recipient: Address,
+  //    feeRecipient: Address,
+  //    relayFeeBPS: bigint,
+  //    poolAddress: Address,
+  //    proofInputs: WithdrawalProofInput[],
+  //    scope: Hex,
+  //  ): Promise<WithdrawalProof[]> {
 
   /**
    * Validate a batch withdrawal before submission
    */
   validateBatchWithdrawal(
     payload: BatchWithdrawalPayload,
-    batchRelayerAddress: Address,
   ): void {
     // Check processooor matches
-    if (payload.withdrawal.processooor !== batchRelayerAddress) {
+    if (payload.withdrawal.processooor !== this.batchRelayerAddress) {
       throw BatchRelayError.invalidProcessooor(
-        batchRelayerAddress,
+        this.batchRelayerAddress,
         payload.withdrawal.processooor,
       );
     }
@@ -379,62 +131,229 @@ export class BatchWithdrawalService {
     fee: bigint;
     amountAfterFees: bigint;
   } {
-    // Calculate total withdrawal amount
-    const totalAmount = notes.reduce((sum, note) => sum + note.value, 0n);
-
-    // Calculate fees
-    return {
-      totalAmount,
-      ...calculateBatchFees(totalAmount, relayFeeBPS),
-    };
+    // Calculate batch amounts using utility function
+    return calculateBatchAmounts(notes, relayFeeBPS);
   }
 
   /**
-   * Execute a batch relay transaction
+   * Execute a batch relay through the BatchRelayer contract
+   * @param batchRelayerAddress - Address of the BatchRelayer contract
+   * @param poolAddress - Address of the privacy pool
+   * @param withdrawal - Withdrawal struct with processooor set to BatchRelayer
+   * @param proofs - Array of withdrawal proofs
+   * @returns Transaction hash and batch relay details
    */
-  async executeBatchRelay(
-    batchRelayerAddress: Address,
-    payload: BatchWithdrawalPayload,
+  async batchRelay(
+    poolAddress: Address,
+    withdrawal: Withdrawal,
+    proofs: WithdrawalProof[],
   ): Promise<BatchRelayResult> {
-    // Validate the batch withdrawal
-    this.validateBatchWithdrawal(payload, batchRelayerAddress);
+    // Validate inputs
+    if (withdrawal.processooor !== this.batchRelayerAddress) {
+      throw ContractError.invalidProcessooor(
+        this.batchRelayerAddress,
+        withdrawal.processooor,
+      );
+    }
 
-    // Execute the batch relay using ContractsService
-    return await this.contractsService.batchRelay(
-      batchRelayerAddress,
-      payload.poolAddress,
-      payload.withdrawal,
-      payload.proofs,
-    );
+    // Decode and validate BatchRelayData
+    const batchRelayData = decodeBatchRelayData(withdrawal.data);
+    if (batchRelayData.batchSize !== proofs.length) {
+      throw BatchRelayError.invalidBatchSize(
+        batchRelayData.batchSize,
+        proofs.length,
+      );
+    }
+
+    try {
+      // Format all proofs
+      const formattedProofs = proofs.map((proof, index) => {
+        if (!proof) {
+          throw BatchRelayError.invalidInput(`Proof ${index + 1} is null or undefined`);
+        }
+        return this.formatProof(proof);
+      });
+
+      // Simulate the contract call
+      const { request } = await this.publicClient.simulateContract({
+        address: this.batchRelayerAddress,
+        abi: IBatchRelayerABI as Abi,
+        functionName: "batchRelay",
+        args: [poolAddress, withdrawal, formattedProofs],
+        account: this.account,
+      });
+
+      // Execute the transaction
+      const hash = await this.walletClient.writeContract(request);
+
+      // Wait for transaction receipt
+      const receipt = await this.publicClient.waitForTransactionReceipt({
+        hash,
+      });
+
+      // Parse the BatchRelayed event from the logs
+      // The BatchRelayer contract emits this event with the final amounts
+      const batchRelayedEvent = receipt.logs
+        .map((log) => {
+          try {
+            return decodeEventLog({
+              abi: IBatchRelayerABI,
+              data: log.data,
+              topics: log.topics,
+            });
+          } catch {
+            return null;
+          }
+        })
+        .find((event) => event?.eventName === "BatchRelayed");
+
+      if (!batchRelayedEvent) {
+        throw ContractError.eventNotFound("BatchRelayed");
+      }
+
+      const amountAfterFees = batchRelayedEvent.args._amountAfterFees as bigint;
+      const fee = batchRelayedEvent.args._fee as bigint;
+      const totalAmount = amountAfterFees + fee;
+
+      return {
+        transactionHash: hash,
+        recipient: batchRelayData.recipient,
+        totalAmount,
+        fee,
+        amountAfterFees,
+      };
+    } catch (error) {
+      console.error("Batch Relay Error:", {
+        error,
+        batchRelayerAddress: this.batchRelayerAddress,
+        poolAddress,
+      });
+      throw ContractError.executionFailed(
+        "batch relay",
+        error instanceof Error ? error : new Error("Unknown error"),
+      );
+    }
   }
 
   /**
-   * Estimate gas for a batch withdrawal
+   * Estimate gas for a batch relay transaction
    */
-  async estimateGas(
+  async estimateBatchRelayGas(
     batchRelayerAddress: Address,
-    payload: BatchWithdrawalPayload,
+    poolAddress: Address,
+    withdrawal: Withdrawal,
+    proofs: WithdrawalProof[],
   ): Promise<bigint> {
-    return await this.contractsService.estimateBatchRelayGas(
-      batchRelayerAddress,
-      payload.poolAddress,
-      payload.withdrawal,
-      payload.proofs,
-    );
+    try {
+      const formattedProofs = proofs.map((proof, index) => {
+        if (!proof) {
+          throw BatchRelayError.invalidInput(
+            `EstimateGas: Proof ${index + 1} is null or undefined`,
+          );
+        }
+        return this.formatProof(proof);
+      });
+
+      const gas = await this.publicClient.estimateContractGas({
+        address: batchRelayerAddress,
+        abi: IBatchRelayerABI as Abi,
+        functionName: "batchRelay",
+        args: [poolAddress, withdrawal, formattedProofs],
+        account: this.account,
+      });
+
+      return gas;
+    } catch (error) {
+      console.error("Gas Estimation Error:", { error });
+      throw ContractError.gasEstimationFailed(
+        error instanceof Error ? error : new Error("Unknown error"),
+      );
+    }
   }
 
   /**
-   * Simulate a batch withdrawal to check if it would succeed
+   * Simulate a batch relay to check if it would succeed
    */
-  async simulate(
+  async simulateBatchRelay(
     batchRelayerAddress: Address,
-    payload: BatchWithdrawalPayload,
+    poolAddress: Address,
+    withdrawal: Withdrawal,
+    proofs: WithdrawalProof[],
   ): Promise<boolean> {
-    return await this.contractsService.simulateBatchRelay(
-      batchRelayerAddress,
-      payload.poolAddress,
-      payload.withdrawal,
-      payload.proofs,
-    );
+    try {
+      const formattedProofs = proofs.map((proof, index) => {
+        if (!proof) {
+          throw BatchRelayError.invalidInput(
+            `SimulateBatch: Proof ${index + 1} is null or undefined`,
+          );
+        }
+        return this.formatProof(proof);
+      });
+
+      await this.publicClient.simulateContract({
+        address: batchRelayerAddress,
+        abi: IBatchRelayerABI as Abi,
+        functionName: "batchRelay",
+        args: [poolAddress, withdrawal, formattedProofs],
+        account: this.account,
+      });
+
+      return true;
+    } catch (error) {
+      console.error("Simulation Error:", { error });
+      return false;
+    }
+  }
+
+  /**
+   * Get the maximum relay fee BPS from BatchRelayer contract
+   */
+  async getMaxRelayFeeBPS(batchRelayerAddress: Address): Promise<bigint> {
+    try {
+      const maxFeeBPS = await this.publicClient.readContract({
+        address: batchRelayerAddress,
+        abi: IBatchRelayerABI as Abi,
+        functionName: "MAX_RELAY_FEE_BPS",
+      });
+
+      return maxFeeBPS as bigint;
+    } catch (error) {
+      throw ContractError.executionFailed(
+        "read MAX_RELAY_FEE_BPS",
+        error instanceof Error ? error : new Error("Unknown error"),
+      );
+    }
+  }
+
+  private formatProof(proof: CommitmentProof | WithdrawalProof) {
+    if (!proof || !proof.proof) {
+      throw new Error(
+        `formatProof received invalid proof structure: ${JSON.stringify(proof)}`,
+      );
+    }
+
+    const result = {
+      pA: [
+        bigintToHex(proof.proof.pi_a?.[0]),
+        bigintToHex(proof.proof.pi_a?.[1]),
+      ],
+      pB: [
+        [
+          bigintToHex(proof.proof.pi_b?.[0]?.[1]),
+          bigintToHex(proof.proof.pi_b?.[0]?.[0]),
+        ],
+        [
+          bigintToHex(proof.proof.pi_b?.[1]?.[1]),
+          bigintToHex(proof.proof.pi_b?.[1]?.[0]),
+        ],
+      ],
+      pC: [
+        bigintToHex(proof.proof.pi_c?.[0]),
+        bigintToHex(proof.proof.pi_c?.[1]),
+      ],
+      pubSignals: proof.publicSignals.map(bigintToHex),
+    };
+
+    return result;
   }
 }

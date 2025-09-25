@@ -18,8 +18,8 @@ export interface SdkProviderInterface {
     scope: bigint,
     chainId: number,
   ): Promise<{ poolAddress: Address; assetAddress: Address }>;
-  executeBatchRelay(
-    batchRelayerAddress: Address,
+  broadcastBatchRelay(
     payload: BatchWithdrawalPayload,
+    chainId: number
   ): Promise<BatchRelayResult>;
 }

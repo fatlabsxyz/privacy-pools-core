@@ -210,8 +210,7 @@ export class BatchRelayService {
 
       const txHash = await this.broadcastBatchWithdrawal(
         payload,
-        chainId,
-        amounts.totalAmount
+        chainId
       );
 
       await this.db.updateBroadcastedRequest(requestId, txHash);
@@ -386,13 +385,10 @@ export class BatchRelayService {
    */
   protected async broadcastBatchWithdrawal(
     payload: BatchWithdrawalPayload,
-    chainId: number,
-    totalAmount: bigint
+    chainId: number
   ): Promise<string> {
     try {
-      const batchRelayerAddress = getAddress(getBatchRelayerAddress(chainId));
-
-      const result = await this.sdkProvider.executeBatchRelay(batchRelayerAddress, payload);
+      const result = await this.sdkProvider.broadcastBatchRelay(payload, chainId);
 
       return result.transactionHash;
     } catch (error) {

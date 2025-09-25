@@ -5,13 +5,13 @@ import {
   CircuitsInterface,
 } from "../interfaces/circuits.interface.js";
 import { WithdrawalProof, WithdrawalProofInput } from "../types/withdrawal.js";
-import { AccountCommitment, Commitment } from "../index.js";
+import { AccountCommitment, Address, Commitment } from "../index.js";
 
 /**
  * Service responsible for handling withdrawal-related operations.
  */
 export class WithdrawalService {
-  constructor(private readonly circuits: CircuitsInterface) {}
+  constructor(private readonly circuits: CircuitsInterface) { }
 
   /**
    * Generates a withdrawal proof.
@@ -123,4 +123,10 @@ export class WithdrawalService {
       ASPIndex: BigInt(input.aspMerkleProof.index),
     };
   }
+
+
+
+  // XXX: wrapper que llama a proveWithdrawal n veces y te devuelve un array de 
+  // parameters: withdrawalProofInputs[], commitments[],
+  // return: WIthdrawalProof[], 
 }

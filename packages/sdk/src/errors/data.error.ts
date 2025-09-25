@@ -10,6 +10,13 @@ export class DataError extends SDKError {
     this.name = "DataError";
   }
 
+  public static invalidProof(error: string): DataError {
+    return new DataError(
+      error,
+      ErrorCode.INVALID_INPUT,
+    );
+  }
+
   public static invalidLog(type: string, reason: string): DataError {
     return new DataError(
       `Invalid ${type} log: ${reason}`,

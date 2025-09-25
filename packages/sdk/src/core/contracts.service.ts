@@ -1,5 +1,4 @@
 import {
-  Abi,
   Account,
   Address,
   Chain,
@@ -24,10 +23,10 @@ import { IBatchRelayerABI } from "../abi/IBatchRelayer.js";
 import { ERC20ABI } from "../abi/ERC20.js";
 import { privateKeyToAccount } from "viem/accounts";
 import { CommitmentProof, Hash } from "../types/commitment.js";
-import { bigintToHex } from "../crypto.js";
 import { ContractError } from "../errors/base.error.js";
 import { BatchRelayError } from "../errors/batchRelay.error.js";
 import { decodeBatchRelayData } from "../utils/batchRelayEncoder.js";
+import { DataError } from "../errors/data.error.js";
 
 export class ContractInteractionsService implements ContractInteractions {
   private publicClient: PublicClient;
@@ -87,10 +86,10 @@ export class ContractInteractionsService implements ContractInteractions {
     try {
       const { request } = await this.publicClient.simulateContract({
         address: this.entrypointAddress,
-        abi: IEntrypointABI as Abi,
+        abi: IEntrypointABI,
         functionName: "deposit",
         args: [asset, amount, precommitment],
-        value: 0n,
+        value: undefined, // Was 0n but should be undefined? old code: // 0n // BigInt("0"),
         account: this.account,
       });
       return await this.executeTransaction(request);
@@ -116,7 +115,7 @@ export class ContractInteractionsService implements ContractInteractions {
     try {
       const { request } = await this.publicClient.simulateContract({
         address: this.entrypointAddress,
-        abi: IEntrypointABI as Abi,
+        abi: IEntrypointABI,
         functionName: "deposit",
         args: [precommitment],
         value: amount,
@@ -145,17 +144,23 @@ export class ContractInteractionsService implements ContractInteractions {
     scope: Hash,
   ): Promise<TransactionResponse> {
     try {
-      const formattedProof = this.formatProof(withdrawalProof);
+      const formattedProof = this.formatWithdrawalProof(withdrawalProof);
 
       // get pool address from scope
       const scopeData = await this.getScopeData(scope);
 
       const { request } = await this.publicClient.simulateContract({
         address: scopeData.poolAddress,
-        abi: IPrivacyPoolABI as Abi,
+        abi: IPrivacyPoolABI,
         functionName: "withdraw",
         account: this.account.address as Address,
-        args: [withdrawal, formattedProof],
+        args: [ 
+          {
+            processooor: withdrawal.processooor,
+            data: withdrawal.data
+          }, 
+          formattedProof
+        ],
       });
 
       return await this.executeTransaction(request);
@@ -184,14 +189,21 @@ export class ContractInteractionsService implements ContractInteractions {
     scope: Hash,
   ): Promise<TransactionResponse> {
     try {
-      const formattedProof = this.formatProof(withdrawalProof);
+      const formattedProof = this.formatWithdrawalProof(withdrawalProof);
 
       const { request } = await this.publicClient.simulateContract({
         address: this.entrypointAddress,
-        abi: [...(IEntrypointABI as Abi), ...(IPrivacyPoolABI as Abi)],
+        abi: [...(IEntrypointABI), ...(IPrivacyPoolABI)],
         functionName: "relay",
         account: this.account,
-        args: [withdrawal, formattedProof, scope],
+        args: [
+          {
+            processooor: withdrawal.processooor,
+            data: withdrawal.data
+          },
+          formattedProof, 
+          scope
+        ],
       });
 
       return await this.executeTransaction(request);
@@ -217,11 +229,11 @@ export class ContractInteractionsService implements ContractInteractions {
     privacyPoolAddress: Address,
   ): Promise<TransactionResponse> {
     try {
-      const formattedProof = this.formatProof(commitmentProof);
+      const formattedProof = this.formatCommitmentProof(commitmentProof);
 
       const { request } = await this.publicClient.simulateContract({
         address: privacyPoolAddress,
-        abi: IPrivacyPoolABI as Abi,
+        abi: IPrivacyPoolABI,
         functionName: "ragequit",
         args: [formattedProof],
         account: this.account,
@@ -245,7 +257,7 @@ export class ContractInteractionsService implements ContractInteractions {
   async getScope(privacyPoolAddress: Address): Promise<bigint> {
     const scope = await this.publicClient.readContract({
       address: privacyPoolAddress,
-      abi: IPrivacyPoolABI as Abi,
+      abi: IPrivacyPoolABI,
       functionName: "SCOPE",
       account: this.account,
     });
@@ -262,12 +274,12 @@ export class ContractInteractionsService implements ContractInteractions {
   async getStateRoot(privacyPoolAddress: Address): Promise<bigint> {
     const stateRoot = await this.publicClient.readContract({
       address: privacyPoolAddress,
-      abi: IEntrypointABI as Abi,
+      abi: IEntrypointABI,
       account: this.account,
       functionName: "latestRoot",
     });
 
-    return BigInt(stateRoot as string);
+    return stateRoot;
   }
 
   /**
@@ -279,7 +291,7 @@ export class ContractInteractionsService implements ContractInteractions {
   async getStateSize(privacyPoolAddress: Address): Promise<bigint> {
     const stateSize = await this.publicClient.readContract({
       address: privacyPoolAddress,
-      abi: IPrivacyPoolABI as Abi,
+      abi: IPrivacyPoolABI,
       account: this.account,
       // this should be added in the next update of PrivacyPoolSimple.sol
       functionName: "currentTreeSize",
@@ -299,7 +311,7 @@ export class ContractInteractionsService implements ContractInteractions {
   async getAssetConfig(assetAddress: Address): Promise<AssetConfig> {
     const assetConfig = await this.publicClient.readContract({
       address: this.entrypointAddress,
-      abi: IEntrypointABI as Abi,
+      abi: IEntrypointABI,
       account: this.account,
       args: [assetAddress],
       functionName: "assetConfig",
@@ -337,7 +349,7 @@ export class ContractInteractionsService implements ContractInteractions {
       // get pool address fro entrypoint
       const poolAddress = await this.publicClient.readContract({
         address: this.entrypointAddress,
-        abi: IEntrypointABI as Abi,
+        abi: IEntrypointABI,
         account: this.account,
         args: [scope],
         functionName: "scopeToPool",
@@ -354,7 +366,7 @@ export class ContractInteractionsService implements ContractInteractions {
       // get asset adress from pool
       const assetAddress = await this.publicClient.readContract({
         address: getAddress(poolAddress as string),
-        abi: IPrivacyPoolABI as Abi,
+        abi: IPrivacyPoolABI,
         account: this.account,
         functionName: "ASSET",
       });
@@ -388,7 +400,7 @@ export class ContractInteractionsService implements ContractInteractions {
     try {
       const { request } = await this.publicClient.simulateContract({
         address: tokenAddress,
-        abi: ERC20ABI as Abi,
+        abi: ERC20ABI,
         functionName: "approve",
         args: [spenderAddress, amount],
         account: this.account,
@@ -403,36 +415,93 @@ export class ContractInteractionsService implements ContractInteractions {
     }
   }
 
-  private formatProof(proof: CommitmentProof | WithdrawalProof) {
+  private formatCommitmentProof(proof: CommitmentProof): {
+      pA: [bigint, bigint]; 
+      pB: [[bigint, bigint],[bigint, bigint]], 
+      pC: [bigint, bigint]; 
+      pubSignals: [bigint,bigint]; // TODO check if commitment proof pubSignals are 2 len 
+  } {
     if (!proof || !proof.proof) {
-      throw new Error(
-        `formatProof received invalid proof structure: ${JSON.stringify(proof)}`,
+      throw DataError.invalidProof(
+        `formatCommitmentProof received invalid proof structure: ${JSON.stringify(proof)}`,
       );
     }
 
-    const result = {
+    return { 
       pA: [
-        bigintToHex(proof.proof.pi_a?.[0]),
-        bigintToHex(proof.proof.pi_a?.[1]),
+        BigInt(proof.proof.pi_a?.[0]!),
+        BigInt(proof.proof.pi_a?.[1]!),
       ],
       pB: [
         [
-          bigintToHex(proof.proof.pi_b?.[0]?.[1]),
-          bigintToHex(proof.proof.pi_b?.[0]?.[0]),
+          BigInt(proof.proof.pi_b?.[0]?.[1]!),
+          BigInt(proof.proof.pi_b?.[0]?.[0]!),
         ],
         [
-          bigintToHex(proof.proof.pi_b?.[1]?.[1]),
-          bigintToHex(proof.proof.pi_b?.[1]?.[0]),
+          BigInt(proof.proof.pi_b?.[1]?.[1]!),
+          BigInt(proof.proof.pi_b?.[1]?.[0]!),
         ],
       ],
       pC: [
-        bigintToHex(proof.proof.pi_c?.[0]),
-        bigintToHex(proof.proof.pi_c?.[1]),
+        BigInt(proof.proof.pi_c?.[0]!),
+        BigInt(proof.proof.pi_c?.[1]!),
       ],
-      pubSignals: proof.publicSignals.map(bigintToHex),
+      pubSignals: [
+      BigInt(proof.publicSignals[0]!), 
+      BigInt(proof.publicSignals[1]!), 
+      // BigInt(proof.publicSignals[2]!), 
+      // BigInt(proof.publicSignals[3]!), 
+      // BigInt(proof.publicSignals[4]!), 
+      // BigInt(proof.publicSignals[5]!), 
+      // BigInt(proof.publicSignals[6]!), 
+      // BigInt(proof.publicSignals[7]!)
+      ] 
     };
+  }
 
-    return result;
+
+  private formatWithdrawalProof(proof: WithdrawalProof): { 
+      pA: [bigint, bigint]; 
+      pB: [[bigint, bigint],[bigint, bigint]], 
+      pC: [bigint, bigint]; 
+      pubSignals: [bigint,bigint,bigint,bigint,bigint,bigint,bigint,bigint]; 
+    } {
+    if (!proof || !proof.proof) {
+      throw DataError.invalidProof(
+        `formatWithdrawalProof received invalid proof structure: ${JSON.stringify(proof)}`
+      );
+    }
+
+    return { 
+      pA: [
+        BigInt(proof.proof.pi_a?.[0]!),
+        BigInt(proof.proof.pi_a?.[1]!),
+      ],
+      pB: [
+        [
+          BigInt(proof.proof.pi_b?.[0]?.[1]!),
+          BigInt(proof.proof.pi_b?.[0]?.[0]!),
+        ],
+        [
+          BigInt(proof.proof.pi_b?.[1]?.[1]!),
+          BigInt(proof.proof.pi_b?.[1]?.[0]!),
+        ],
+      ],
+      pC: [
+        BigInt(proof.proof.pi_c?.[0]!),
+        BigInt(proof.proof.pi_c?.[1]!),
+      ],
+      pubSignals: [
+      BigInt(proof.publicSignals[0]!), 
+      BigInt(proof.publicSignals[1]!), 
+      BigInt(proof.publicSignals[2]!), 
+      BigInt(proof.publicSignals[3]!), 
+      BigInt(proof.publicSignals[4]!), 
+      BigInt(proof.publicSignals[5]!), 
+      BigInt(proof.publicSignals[6]!), 
+      BigInt(proof.publicSignals[7]!)
+      ] 
+    };
   }
 
   private async executeTransaction(request: any): Promise<TransactionResponse> {
@@ -489,15 +558,21 @@ export class ContractInteractionsService implements ContractInteractions {
         if (!proof) {
           throw BatchRelayError.invalidInput(`Proof ${index + 1} is null or undefined`);
         }
-        return this.formatProof(proof);
+        return this.formatWithdrawalProof(proof);
       });
 
       // Simulate the contract call
       const { request } = await this.publicClient.simulateContract({
         address: batchRelayerAddress,
-        abi: IBatchRelayerABI as Abi,
+        abi: IBatchRelayerABI,
         functionName: "batchRelay",
-        args: [poolAddress, withdrawal, formattedProofs],
+        args: [
+          poolAddress, 
+          {
+            processooor: withdrawal.processooor,
+            data:withdrawal.data
+          }, formattedProofs
+        ],
         account: this.account,
       });
 
@@ -569,14 +644,21 @@ export class ContractInteractionsService implements ContractInteractions {
             `EstimateGas: Proof ${index + 1} is null or undefined`,
           );
         }
-        return this.formatProof(proof);
+        return this.formatWithdrawalProof(proof);
       });
 
       const gas = await this.publicClient.estimateContractGas({
         address: batchRelayerAddress,
-        abi: IBatchRelayerABI as Abi,
+        abi: IBatchRelayerABI,
         functionName: "batchRelay",
-        args: [poolAddress, withdrawal, formattedProofs],
+        args: [
+          poolAddress, 
+          {
+            processooor: withdrawal.processooor,
+            data: withdrawal.data
+          }, 
+          formattedProofs
+        ],
         account: this.account,
       });
 
@@ -605,17 +687,26 @@ export class ContractInteractionsService implements ContractInteractions {
             `SimulateBatch: Proof ${index + 1} is null or undefined`,
           );
         }
-        return this.formatProof(proof);
+        // return this.formatProof(proof);
+        return this.formatWithdrawalProof(proof);  
       });
 
-      await this.publicClient.simulateContract({
+      const value = await this.publicClient.simulateContract({
         address: batchRelayerAddress,
-        abi: IBatchRelayerABI as Abi,
+        abi: IBatchRelayerABI,
         functionName: "batchRelay",
-        args: [poolAddress, withdrawal, formattedProofs],
+        args: [
+          poolAddress, 
+          {
+            processooor: withdrawal.processooor, 
+            data: withdrawal.data
+          }, 
+        formattedProofs
+        ],
         account: this.account,
-      });
+      } as const);
 
+      console.log("SIMULATE-BATCH-RETURN-VALUE: ", value.result);
       return true;
     } catch (error) {
       console.error("Simulation Error:", { error });
@@ -630,7 +721,7 @@ export class ContractInteractionsService implements ContractInteractions {
     try {
       const maxFeeBPS = await this.publicClient.readContract({
         address: batchRelayerAddress,
-        abi: IBatchRelayerABI as Abi,
+        abi: IBatchRelayerABI,
         functionName: "MAX_RELAY_FEE_BPS",
       });
 

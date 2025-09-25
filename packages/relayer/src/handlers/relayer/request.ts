@@ -50,12 +50,35 @@ function isChainSupported(chainId: number): boolean {
  * @throws {ValidationError} - If the input data is invalid.
  * @throws {ConfigError} - If the chain is not supported.
  */
-function parseWithdrawal(body: Request["body"]): { payload: WithdrawalPayload, chainId: number; } {
+function parseWithdrawal(body: Request["body"]): { payload: WithdrawalPayload, chainId: number } {
+  const validation = validateRelayRequestBody(body);
+  if (validation.success) {
+    try {
+      const payload = relayRequestBodyToWithdrawalPayload(body);
+      const chainId = typeof body.chainId === 'string' ? parseInt(body.chainId, 10) : body.chainId;
 
   const { data, error, success } = zRelayRequest.safeParse(body);
 
-  if (!success) {
-    throw ValidationError.invalidInput({ error, message: "Error parsing payload" });
+      // Check if the chain is supported early
+      if (!isChainSupported(chainId)) {
+        throw ValidationError.invalidInput({ message: `Chain with ID ${chainId} not supported.` });
+      }
+
+      return { payload, chainId };
+    } catch (error) {
+      console.error(error);
+      // Re-throw ConfigError as is
+      if (error instanceof ConfigError) {
+        throw error;
+      }
+      // TODO: extend this catch to return more details about the issue (viem error, node error, etc)
+      throw ValidationError.invalidInput({
+        message: "Can't parse payload into SDK structure",
+      });
+    }
+  } else {
+    const messages = validation.errors?.map(e => e.message).join(", ") || "Payload format error";
+    throw ValidationError.invalidInput({ message: messages });
   }
 
   const payload = relayRequestBodyToWithdrawalPayload(data);

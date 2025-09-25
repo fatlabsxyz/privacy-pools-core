@@ -1,15 +1,17 @@
-import { Ajv, JSONSchemaType } from "ajv";
+import { z } from "zod";
+import { zAddress, zChainId } from "../shared.schemes.js";
 
-// AJV schema for validation
-const ajv = new Ajv();
+const zDetailsRequestSchema = z.object({
+  chainId: zChainId,
+  assetAddress: zAddress,
+});
 
-const detailsRequestSchema: JSONSchemaType<{ chainId: string, assetAddress: string }> = {
-  type: "object",
-  properties: {
-    "chainId": { "type": "string" },
-    "assetAddress": { "type": "string" },
-  },
-  required: ["chainId", "assetAddress"],
-} as const;
-
-export const validateDetailsQuerystring = ajv.compile(detailsRequestSchema);
+export const validateDetailsQuerystring = (data: unknown) => {
+  const result = zDetailsRequestSchema.safeParse(data);
+  return {
+    success: result.success,
+    errors: result.success ? undefined : result.error.errors.map(err => ({ 
+      message: `${err.path.join('.')}: ${err.message}` 
+    }))
+  };
+};

@@ -1,56 +1,37 @@
-import { getAddress } from "viem";
 import { z } from "zod";
+import { zChainId, zFeeCommitment } from "../shared.schemes.js";
 
-const zNonNegativeBigInt = z
-  .string()
-  .or(z.number())
-  .pipe(z.coerce.bigint().nonnegative());
-
-// Address validation schema
-export const zAddress = z
-  .string()
-  .regex(/^0x[0-9a-fA-F]+/)
-  .length(42)
-  .transform((v) => getAddress(v));
-
-export const zHex = z
-  .string()
-  .regex(/^0x[0-9a-fA-F]+/)
-  .transform(x => x as `0x${string}`);
-
-export const zWithdrawal = z.object({
-  processooor: zAddress,
-  data: zHex
+const zWithdrawal = z.object({
+  processooor: z.string(),
+  data: z.string(),
 });
 
-export const zProof = z.object({
+
+const zPublicSignals = z.array(z.string()).length(8);
+
+const zProof = z.object({
   protocol: z.string().optional(),
   curve: z.string().optional(),
-  pi_a: z.tuple([z.string(), z.string(), z.string()]),
-  pi_b: z.tuple([
-    z.tuple([z.string(), z.string()]),
-    z.tuple([z.string(), z.string()]),
-    z.tuple([z.string(), z.string()]),
-  ]),
-  pi_c: z.tuple([z.string(), z.string(), z.string()]),
+  pi_a: z.array(z.string()).min(1),
+  pi_b: z.array(z.array(z.string()).min(1)).min(1),
+  pi_c: z.array(z.string()).min(1),
 });
 
-export const zFeeCommitment = z.object({
-  expiration: z.number().nonnegative().int(),
-  withdrawalData: zHex,
-  asset: zAddress,
-  signedRelayerCommitment: zHex,
-  extraGas: z.boolean(),
-  amount: zNonNegativeBigInt
-});
-
-export const zRelayRequest = z.object({
+const zRelayRequestSchema = z.object({
   withdrawal: zWithdrawal,
-  publicSignals: z.array(z.string()).length(8),
+  publicSignals: zPublicSignals,
   proof: zProof,
-  scope: zNonNegativeBigInt,
-  chainId: z.string().or(z.number()).pipe(z.coerce.number().positive()),
-  feeCommitment: zFeeCommitment.optional()
-})
-  .strict()
-  .readonly();
+  scope: z.string(),
+  chainId: zChainId,
+  feeCommitment: zFeeCommitment.optional(),
+});
+
+export const validateRelayRequestBody = (data: unknown) => {
+  const result = zRelayRequestSchema.safeParse(data);
+  return {
+    success: result.success,
+    errors: result.success ? undefined : result.error.errors.map(err => ({ 
+      message: `${err.path.join('.')}: ${err.message}` 
+    }))
+  };
+};

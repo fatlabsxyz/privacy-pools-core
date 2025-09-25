@@ -15,10 +15,10 @@ export function validateDetailsMiddleware(
   res: Response,
   next: NextFunction,
 ) {
-  const isValid = validateDetailsQuerystring(req.query);
-  if (!isValid) {
+  const validation = validateDetailsQuerystring(req.query);
+  if (!validation.success) {
     const messages: string[] = [];
-    validateDetailsQuerystring.errors?.forEach(e => e?.message ? messages.push(e.message) : undefined);
+    validation.errors?.forEach(e => e?.message ? messages.push(e.message) : undefined);
     next(ValidationError.invalidQuerystring({ message: messages.join("\n") }));
     return;
   }
@@ -31,9 +31,11 @@ export function validateRelayRequestMiddleware(
   res: Response,
   next: NextFunction,
 ) {
-  const { success, error } = zRelayRequest.safeParse(req.body);
-  if (!success) {
-    next(ValidationError.invalidInput({ message: error.errors.map(i => `${i.path.join('.')}: ${i.message}`).join("\n") }));
+  const validation = validateRelayRequestBody(req.body);
+  if (!validation.success) {
+    const messages: string[] = [];
+    validation.errors?.forEach(e => e?.message ? messages.push(e.message) : undefined);
+    next(ValidationError.invalidInput({ message: messages.join("\n") }));
     return;
   }
   next();
@@ -46,10 +48,10 @@ export function validateQuoteMiddleware(
   res: Response,
   next: NextFunction,
 ) {
-  const isValid = validateQuoteBody(req.body);
-  if (!isValid) {
+  const validation = validateQuoteBody(req.body);
+  if (!validation.success) {
     const messages: string[] = [];
-    validateQuoteBody.errors?.forEach(e => e?.message ? messages.push(e.message) : undefined);
+    validation.errors?.forEach(e => e?.message ? messages.push(e.message) : undefined);
     next(ValidationError.invalidInput({ message: messages.join("\n") }));
     return;
   }

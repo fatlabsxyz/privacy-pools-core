@@ -5,7 +5,7 @@ import {
 } from "../config/index.js";
 import { createChainObject } from "../utils.js";
 import { privateKeyToAccount } from "viem/accounts";
-import { FeeCommitment } from "../interfaces/relayer/common.js";
+import { FeeCommitment, BatchFeeCommitment } from "../interfaces/relayer/common.js";
 
 interface IWeb3Provider {
   client(chainId: number): PublicClient;
@@ -22,6 +22,13 @@ const domain = (chainId: number) => ({
 const RelayerCommitmentTypes = {
   RelayerCommitment: [
     { name: "withdrawalData", type: "bytes" },
+    { name: "expiration", type: "uint256" },
+  ]
+} as const;
+
+const BatchRelayerCommitmentTypes = {
+  BatchRelayerCommitment: [
+    { name: "batchRelayData", type: "bytes" },
     { name: "expiration", type: "uint256" },
   ]
 } as const;
@@ -86,6 +93,36 @@ export class Web3Provider implements IWeb3Provider {
         expiration: BigInt(expiration)
       },
       signature: signedRelayerCommitment
+    })
+  }
+
+  async signBatchRelayerCommitment(chainId: number, commitment: Omit<BatchFeeCommitment, 'signedBatchRelayerCommitment'>) {
+    const signer = privateKeyToAccount(getSignerPrivateKey(chainId) as Hex);
+    const { batchRelayData, expiration } = commitment;
+    return signer.signTypedData({
+      domain: domain(chainId),
+      types: BatchRelayerCommitmentTypes,
+      primaryType: 'BatchRelayerCommitment',
+      message: {
+        batchRelayData,
+        expiration: BigInt(expiration)
+      }
+    })
+  }
+
+  async verifyBatchRelayerCommitment(chainId: number, commitment: BatchFeeCommitment): Promise<boolean> {
+    const signer = privateKeyToAccount(getSignerPrivateKey(chainId) as Hex);
+    const { batchRelayData, expiration, signedBatchRelayerCommitment } = commitment;
+    return verifyTypedData({
+      address: signer.address,
+      domain: domain(chainId),
+      types: BatchRelayerCommitmentTypes,
+      primaryType: 'BatchRelayerCommitment',
+      message: {
+        batchRelayData,
+        expiration: BigInt(expiration)
+      },
+      signature: signedBatchRelayerCommitment
     })
   }
 

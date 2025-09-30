@@ -11,49 +11,56 @@ import { getChainConfig } from "../../config/index.js";
 import { web3Provider } from "../../providers/index.js";
 import { batchRelayService } from "../../services/index.js";
 import { BatchRequestMarshall } from "../../types.js";
-import { FeeCommitment } from "../../interfaces/relayer/common.js";
+import { BatchFeeCommitment } from "../../interfaces/relayer/common.js";
+import { decodeBatchRelayData, BatchRelayData } from "../../utils/batchRelayEncoder.js";
 
 /**
- * Checks if a fee commitment has expired.
- * @param feeCommitment - The fee commitment to check
+ * Checks if a batch fee commitment has expired.
+ * @param batchFeeCommitment - The batch fee commitment to check
  * @returns true if expired, false otherwise
  */
-function commitmentExpired(feeCommitment: FeeCommitment): boolean {
-  return feeCommitment.expiration < Number(new Date());
+function commitmentExpired(batchFeeCommitment: BatchFeeCommitment): boolean {
+  return batchFeeCommitment.expiration < Number(new Date());
 }
 
 /**
- * Validates the signature of a fee commitment.
+ * Validates the signature of a batch fee commitment.
  * @param chainId - The chain ID
- * @param feeCommitment - The fee commitment to validate
+ * @param batchFeeCommitment - The batch fee commitment to validate
  * @returns Promise<boolean> - true if valid, false otherwise
  */
-async function validFeeCommitment(chainId: number, feeCommitment: FeeCommitment): Promise<boolean> {
-  return web3Provider.verifyRelayerCommitment(chainId, feeCommitment);
+async function validBatchFeeCommitment(chainId: number, batchFeeCommitment: BatchFeeCommitment): Promise<boolean> {
+  return web3Provider.verifyBatchRelayerCommitment(chainId, batchFeeCommitment);
 }
 
 /**
- * Validates the batch fee commitment if provided.
+ * Validates and decodes the batch fee commitment.
+ * This function should only be called when a commitment is provided.
  * @param chainId - The chain ID
- * @param feeCommitment - The fee commitment to validate (optional)
+ * @param batchFeeCommitment - The batch fee commitment to validate
+ * @returns The decoded BatchRelayData
  * @throws {WithdrawalValidationError} - If validation fails
  */
-async function validateBatchFeeCommitment(chainId: number, feeCommitment?: FeeCommitment | null): Promise<void> {
-  if (feeCommitment) {
-    // Check if fee commitment has expired
-    if (commitmentExpired(feeCommitment)) {
-      throw WithdrawalValidationError.relayerCommitmentRejected(
-        `Batch relay fee commitment expired, please quote again`,
-      );
-    }
-
-    // Verify signature
-    if (!await validFeeCommitment(chainId, feeCommitment)) {
-      throw WithdrawalValidationError.relayerCommitmentRejected(
-        `Invalid batch relayer commitment signature`,
-      );
-    }
+async function validateAndDecodeBatchCommitment(
+  chainId: number,
+  batchFeeCommitment: BatchFeeCommitment
+): Promise<BatchRelayData> {
+  // Check if fee commitment has expired
+  if (commitmentExpired(batchFeeCommitment)) {
+    throw WithdrawalValidationError.relayerCommitmentRejected(
+      `Batch relay fee commitment expired, please quote again`,
+    );
   }
+
+  // Verify signature
+  if (!await validBatchFeeCommitment(chainId, batchFeeCommitment)) {
+    throw WithdrawalValidationError.relayerCommitmentRejected(
+      `Invalid batch relayer commitment signature`,
+    );
+  }
+
+  // Decode and return the signed batch relay data
+  return decodeBatchRelayData(batchFeeCommitment.batchRelayData);
 }
 
 /**
@@ -140,9 +147,9 @@ function parseBatchWithdrawal(body: Request["body"]): { payload: BatchWithdrawal
     proofs: contractProofs,
     originalProofs: batchBody.proofs, // Keep original proofs for verification
     poolAddress: getAddress(batchBody.poolAddress),
-    feeCommitment: batchBody.feeCommitment
+    batchFeeCommitment: batchBody.batchFeeCommitment
   };
-  
+
   return { payload, chainId };
 }
 
@@ -160,19 +167,22 @@ export async function batchRelayRequestHandler(
 ) {
   try {
     const { payload: batchPayload, chainId } = parseBatchWithdrawal(req.body);
-    
-    // Validate fee commitment (same as regular request handler)
-    await validateBatchFeeCommitment(chainId, batchPayload.feeCommitment);
-    
-    // Check gas price (same as regular request handler)
+
+    // Validate and decode batch fee commitment (only if provided)
+    let signedBatchData: BatchRelayData | undefined;
+    if (batchPayload.batchFeeCommitment) {
+      signedBatchData = await validateAndDecodeBatchCommitment(chainId, batchPayload.batchFeeCommitment);
+    }
+
+    // Check gas price
     const maxGasPrice = getChainConfig(chainId)?.max_gas_price;
     const currentGasPrice = await web3Provider.getGasPrice(chainId);
     if (maxGasPrice !== undefined && currentGasPrice > maxGasPrice) {
       throw ConfigError.maxGasPrice(`Current gas price ${currentGasPrice} is higher than max price ${maxGasPrice}`)
     }
 
-    const requestResponse: RelayerResponse = 
-      await batchRelayService.handleBatchRequest(batchPayload, chainId);
+    const requestResponse: RelayerResponse =
+      await batchRelayService.handleBatchRequest(batchPayload, chainId, signedBatchData);
 
     res
       .status(200)

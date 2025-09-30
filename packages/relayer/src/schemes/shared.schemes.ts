@@ -30,3 +30,9 @@ export const zFeeCommitment = z.object({
   withdrawalData: z.string(),
   signedRelayerCommitment: z.string(),
 });
+
+export const zBatchFeeCommitment = z.object({
+  expiration: z.number(),
+  batchRelayData: z.string(),
+  signedBatchRelayerCommitment: z.string(),
+});

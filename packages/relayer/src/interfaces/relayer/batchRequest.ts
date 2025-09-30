@@ -1,7 +1,7 @@
 import {
   Withdrawal as SdkWithdrawal,
 } from "@0xbow/privacy-pools-core-sdk";
-import { FeeCommitment } from "./common.js";
+import { FeeCommitment, BatchFeeCommitment } from "./common.js";
 import { ProofRelayerPayload } from "./request.js";
 
 // Contract-compatible proof structure that matches ProofLib.WithdrawProof exactly
@@ -30,8 +30,8 @@ export interface BatchRelayRequestBody {
   poolAddress: string;
   /** Chain ID to process the request on */
   chainId: string | number;
-  /** Optional fee commitment (if pre-negotiated) */
-  feeCommitment?: FeeCommitment;
+  /** Optional batch fee commitment (if pre-negotiated) */
+  batchFeeCommitment?: BatchFeeCommitment;
 }
 
 /**
@@ -46,7 +46,7 @@ export interface BatchWithdrawalPayload {
     proof: ProofRelayerPayload;
   }>;
   readonly poolAddress: string;
-  readonly feeCommitment?: FeeCommitment;
+  readonly batchFeeCommitment?: BatchFeeCommitment;
 }
 
 /**
@@ -83,8 +83,6 @@ export interface BatchRelayQuoteRequest {
   chainId: string | number;
   /** Optional recipient address for fee commitment generation */
   recipient?: string;
-  /** Optional fee commitment for pre-negotiated fees */
-  feeCommitment?: FeeCommitment;
 }
 
 /**
@@ -99,6 +97,6 @@ export interface BatchRelayQuoteResponse {
   estimatedGas: string;
   /** Quote expiration timestamp */
   expiresAt: number;
-  /** Optional fee commitment if requested */
-  feeCommitment?: FeeCommitment;
+  /** Optional batch fee commitment if requested */
+  batchFeeCommitment?: BatchFeeCommitment;
 }

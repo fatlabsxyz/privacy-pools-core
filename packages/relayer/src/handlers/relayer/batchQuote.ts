@@ -5,10 +5,11 @@ import { QuoterError, ValidationError } from "../../exceptions/base.exception.js
 import { web3Provider } from "../../providers/index.js";
 import { batchRelayService } from "../../services/index.js";
 import { encodeBatchRelayData } from "../../utils/batchRelayEncoder.js";
+import { calculateBatchGasUnits } from "../../utils/batchRelayUtils.js";
 import { BatchQuoteMarshall } from "../../types.js";
-import { 
-  BatchRelayQuoteRequest, 
-  BatchRelayQuoteResponse 
+import {
+  BatchRelayQuoteRequest,
+  BatchRelayQuoteResponse
 } from "../../interfaces/relayer/batchRequest.js";
 
 const TIME_20_SECS = 20 * 1000;
@@ -27,30 +28,30 @@ export async function batchRelayQuoteHandler(
     const chainId = Number(body.chainId);
     const batchSize = Number(body.batchSize);
     const totalAmount = BigInt(body.totalAmount);
-    
+
     // Validate batch size
     if (batchSize < 1 || batchSize > 255) {
       return next(ValidationError.invalidInput({
         message: "Invalid batch size. Must be between 1 and 255"
       }));
     }
-    
+
     // Validate total amount
     if (totalAmount <= 0n) {
       return next(ValidationError.invalidInput({
         message: "Invalid total amount. Must be greater than 0"
       }));
     }
-    
+
     // Get asset address - for batch, we assume native ETH
     // In future, this could be passed in the request
     const assetAddress = getAddress("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE");
-    
+
     const config = getAssetConfig(chainId, assetAddress);
     if (config === undefined) {
       return next(QuoterError.assetNotSupported(`Asset ${assetAddress} for chain ${chainId} is not supported`));
     }
-    
+
     // Calculate the fee BPS needed for this batch
     // This will be the same BPS applied to all withdrawals in the batch
     const feeBPS = await batchRelayService.calculateBatchFeeBPS(
@@ -58,16 +59,16 @@ export async function batchRelayQuoteHandler(
       totalAmount,
       batchSize
     );
-    
+
     // Calculate estimated fee (same BPS applied to total amount)
     const estimatedFee = (totalAmount * BigInt(feeBPS)) / 10000n;
-    
+
     // Calculate estimated gas units for display (no pricing applied)
-    const estimatedGasUnits = batchRelayService.calculateBatchGasUnits(batchSize);
-    
+    const estimatedGasUnits = calculateBatchGasUnits(batchSize);
+
     // Create expiration timestamp
     const expiresAt = Date.now() + TIME_20_SECS;
-    
+
     // Build response
     const response: BatchRelayQuoteResponse = {
       relayFeeBPS: feeBPS,
@@ -75,13 +76,13 @@ export async function batchRelayQuoteHandler(
       estimatedGas: estimatedGasUnits.toString(),
       expiresAt,
     };
-    
+
     // If recipient is provided, create a fee commitment
     const recipient = req.body.recipient ? getAddress(req.body.recipient.toString()) : undefined;
-    
+
     if (recipient) {
       const feeReceiverAddress = getAddress(getFeeReceiverAddress(chainId));
-      
+
       // Encode batch relay data with the calculated fee BPS
       const batchRelayData = encodeBatchRelayData({
         recipient,
@@ -90,28 +91,29 @@ export async function batchRelayQuoteHandler(
         batchSize,
         totalValue: totalAmount
       });
-      
-      const relayerCommitment = { 
-        withdrawalData: batchRelayData, 
-        expiration: expiresAt 
+
+      const batchCommitment = {
+        batchRelayData,
+        expiration: expiresAt
       };
-      
-      const signedRelayerCommitment = await web3Provider.signRelayerCommitment(
-        chainId, 
-        relayerCommitment
+
+      const signedBatchRelayerCommitment = await web3Provider.signBatchRelayerCommitment(
+        chainId,
+        batchCommitment
       );
-      
-      response.feeCommitment = {
-        withdrawalData: batchRelayData,
+
+      response.batchFeeCommitment = {
+        batchRelayData,
         expiration: expiresAt,
-        signedRelayerCommitment
+        signedBatchRelayerCommitment
       };
     }
-    
+
+
     res
       .status(200)
       .json(res.locals.marshalResponse(new BatchQuoteMarshall(response)));
-    
+
   } catch (error) {
     next(error);
   }

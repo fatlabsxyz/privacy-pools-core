@@ -49,7 +49,7 @@ export class BatchQuoteMarshall extends RelayerMarshall {
       estimatedFee: this.response.estimatedFee,
       estimatedGas: this.response.estimatedGas,
       expiresAt: this.response.expiresAt,
-      feeCommitment: this.response.feeCommitment
+      batchFeeCommitment: this.response.batchFeeCommitment
     };
   }
 }

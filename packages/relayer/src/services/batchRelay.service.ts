@@ -23,17 +23,20 @@ import {
 } from "../exceptions/base.exception.js";
 import { BatchWithdrawalPayload, ContractWithdrawProof } from "../interfaces/relayer/batchRequest.js";
 import { RelayerResponse, WithdrawalPayload } from "../interfaces/relayer/request.js";
-import { FeeCommitment } from "../interfaces/relayer/common.js";
+import { FeeCommitment, BatchFeeCommitment } from "../interfaces/relayer/common.js";
 import { web3Provider, SdkProvider, db } from "../providers/index.js";
 import { parseSignals } from "../utils.js";
 import { BatchRelayData } from "../utils/batchRelayEncoder.js";
+import {
+  calculateBatchGasUnits,
+  calculateTotalAmountFromProofs,
+  BASE_GAS_UNITS,
+  GAS_UNITS_PER_NOTE,
+  GAS_PRICE_BUFFER
+} from "../utils/batchRelayUtils.js";
 import { RelayerDatabase } from "../types/db.types.js";
 import { SdkProviderInterface } from "../types/sdk.types.js";
 import { Web3Provider } from "../providers/web3.provider.js";
-
-const BASE_GAS_UNITS = 160500n; // Base gas units for batch relay function call
-const GAS_UNITS_PER_NOTE = 650000n; // Gas units per proof verification
-const GAS_PRICE_BUFFER = 20n; // buffer for estimation
 
 /**
  * Service for processing batch relay requests
@@ -53,23 +56,11 @@ export class BatchRelayService {
   }
 
   /**
-   * Calculate gas units needed for a batch relay operation
-   */
-  calculateBatchGasUnits(batchSize: number): bigint {
-    const baseGasUnits = BASE_GAS_UNITS;
-    const notesGasUnits = GAS_UNITS_PER_NOTE * BigInt(batchSize);
-    const totalGasUnits = baseGasUnits + notesGasUnits;
-
-    return totalGasUnits;
-  }
-
-
-  /**
    * Calculate the total gas cost in Wei for profitability validation
    * Uses deterministic gas units + current gas price + buffer
    */
   async calculateBatchGasCostWei(chainId: number, batchSize: number): Promise<bigint> {
-    const gasUnits = this.calculateBatchGasUnits(batchSize);
+    const gasUnits = calculateBatchGasUnits(batchSize);
     const gasPrice = await this.web3Provider.getGasPrice(chainId);
     const baseGasCostWei = gasUnits * gasPrice;
     const bufferedGasCostWei = baseGasCostWei + (baseGasCostWei * GAS_PRICE_BUFFER) / 100n;
@@ -80,7 +71,6 @@ export class BatchRelayService {
   /**
    * validates batch relay profitability before executing the transaction.
    * checks for: relayFee >= tx_cost + (total_batch_value * batch_relay_fee_bps)
-   * This prevents executing unprofitable batch relays that would lose money for the relayer.
    * 
    * @param chainId - The chain ID
    * @param relayFeeWei - The relay fee in Wei
@@ -159,54 +149,121 @@ export class BatchRelayService {
   }
 
   /**
+   * Validates that the request data matches the signed quote commitment
+   * @param signedData - The batch relay data from the signed quote
+   * @param requestData - The batch relay data from the request
+   * @param calculatedTotalAmount - The total amount calculated from proofs
+   * @throws {WithdrawalValidationError} - If validation fails
+   */
+  protected validateSignedQuote(
+    signedData: BatchRelayData,
+    requestData: BatchRelayData,
+    calculatedTotalAmount: bigint
+  ): void {
+    // Validate batch size matches
+    if (signedData.batchSize !== requestData.batchSize) {
+      throw new WithdrawalValidationError(
+        `Batch size mismatch: signed quote has ${signedData.batchSize}, request has ${requestData.batchSize}`,
+        ErrorCode.INVALID_INPUT
+      );
+    }
+
+    // Validate total value matches calculated amount
+    if (signedData.totalValue !== calculatedTotalAmount) {
+      throw new WithdrawalValidationError(
+        `Total value mismatch: signed quote has ${signedData.totalValue}, calculated ${calculatedTotalAmount}`,
+        ErrorCode.INVALID_INPUT
+      );
+    }
+
+    // Validate relay fee BPS matches
+    if (signedData.relayFeeBPS !== requestData.relayFeeBPS) {
+      throw new WithdrawalValidationError(
+        `Relay fee BPS mismatch: signed quote has ${signedData.relayFeeBPS}, request has ${requestData.relayFeeBPS}`,
+        ErrorCode.INVALID_INPUT
+      );
+    }
+
+    // Validate recipient matches
+    if (signedData.recipient.toLowerCase() !== requestData.recipient.toLowerCase()) {
+      throw new WithdrawalValidationError(
+        `Recipient mismatch: signed quote has ${signedData.recipient}, request has ${requestData.recipient}`,
+        ErrorCode.INVALID_INPUT
+      );
+    }
+
+    // Validate fee recipient matches
+    if (signedData.feeRecipient.toLowerCase() !== requestData.feeRecipient.toLowerCase()) {
+      throw new WithdrawalValidationError(
+        `Fee recipient mismatch: signed quote has ${signedData.feeRecipient}, request has ${requestData.feeRecipient}`,
+        ErrorCode.INVALID_INPUT
+      );
+    }
+  }
+
+  /**
    * Handle a batch relay request
    */
   async handleBatchRequest(
     payload: BatchWithdrawalPayload,
-    chainId: number
+    chainId: number,
+    signedBatchData?: BatchRelayData
   ): Promise<RelayerResponse> {
     const requestId = crypto.randomUUID();
     const timestamp = Date.now();
 
     try {
 
+
+      // TODO: save all proofs?
+      //  const withdrawalProofForDb: WithdrawalProof = {
+      //    proof: {
+      //      protocol: "groth16",
+      //      curve: "bn128",
+      //      pi_a: firstProof.proof.pi_a,
+      //      pi_b: firstProof.proof.pi_b,
+      //      pi_c: firstProof.proof.pi_c,
+      //    },
+      //    publicSignals: firstProof.publicSignals,
+      //  };
+
+      //  const withdrawalPayload: WithdrawalPayload = {
+      //    proof: withdrawalProofForDb,
+      //    withdrawal: payload.withdrawal,
+      //    scope: BigInt(0),
+      //    feeCommitment: payload.feeCommitment
+      //  };
+      //  await this.db.createNewRequest(requestId, timestamp, withdrawalPayload);
+
       // Store request in database
       const firstProof = payload.originalProofs[0];
+
       if (!firstProof) {
         throw new WithdrawalValidationError("No proofs provided", ErrorCode.INVALID_INPUT);
       }
 
-      // TODO: save all proofs?
-      const withdrawalProofForDb: WithdrawalProof = {
-        proof: {
-          protocol: "groth16",
-          curve: "bn128",
-          pi_a: firstProof.proof.pi_a,
-          pi_b: firstProof.proof.pi_b,
-          pi_c: firstProof.proof.pi_c,
-        },
-        publicSignals: firstProof.publicSignals,
-      };
-
-      const withdrawalPayload: WithdrawalPayload = {
-        proof: withdrawalProofForDb,
-        withdrawal: payload.withdrawal,
-        scope: BigInt(0),
-        feeCommitment: payload.feeCommitment
-      };
-      await this.db.createNewRequest(requestId, timestamp, withdrawalPayload);
-
       const batchRelayData = decodeBatchRelayData(payload.withdrawal.data);
 
+      // XXX: validate should include verify, just make one validation.
       await this.validateBatchWithdrawal(payload, batchRelayData, chainId);
+
+      // XXX: should be inside validate
       await this.verifyAllProofs(payload.originalProofs as WithdrawalProof[]);
 
-      const amounts = this.calculateTotalAmounts(payload.proofs);
+      const totalAmount = calculateTotalAmountFromProofs(payload.proofs);
+
+      // If client provided a signed quote, validate it matches the request
+      if (signedBatchData) {
+        this.validateSignedQuote(signedBatchData, batchRelayData, totalAmount);
+      }
 
       const estimatedGasCostWei = await this.calculateBatchGasCostWei(chainId, payload.proofs.length);
-      const relayFeeWei = (amounts.totalAmount * batchRelayData.relayFeeBPS) / 10000n;
 
-      await this.validateProfitability(chainId, relayFeeWei, amounts.totalAmount, estimatedGasCostWei);
+      // Use the signed relayFeeBPS if available, otherwise use the request's relayFeeBPS
+      const relayFeeBPS = signedBatchData?.relayFeeBPS ?? batchRelayData.relayFeeBPS;
+      const relayFeeWei = (totalAmount * relayFeeBPS) / 10000n;
+
+      await this.validateProfitability(chainId, relayFeeWei, totalAmount, estimatedGasCostWei);
 
       const txHash = await this.broadcastBatchWithdrawal(
         payload,
@@ -253,7 +310,7 @@ export class BatchRelayService {
     const processooorAddress = getAddress(payload.withdrawal.processooor);
     const batchFeeRecipient = getAddress(batchData.feeRecipient);
 
-    // Use SDK validation
+    // XXX: validation shouldn't be duplicated. just one function
     try {
       validateBatchRelayData(batchData);
     } catch (error) {
@@ -294,9 +351,8 @@ export class BatchRelayService {
       );
     }
 
-    // Validate all proofs have exactly 8 public signals and the same context (withdrawal hash)
     if (payload.proofs.length > 0) {
-      // Validate first proof has exactly 8 public signals (required by contract)
+      // Validate first proof has exactly 8 public signals
       const firstProof = payload.proofs[0];
       if (firstProof && firstProof.pubSignals.length !== 8) {
         throw new WithdrawalValidationError(
@@ -304,6 +360,7 @@ export class BatchRelayService {
           ErrorCode.INVALID_PROOF
         );
       }
+      // Validate all proofs have exactly 8 public signals and share the same context
 
       const firstContext = firstProof?.pubSignals[7]; // context is at index 7 based on circuit
       for (let i = 1; i < payload.proofs.length; i++) {
@@ -328,7 +385,7 @@ export class BatchRelayService {
     }
 
     // Validate total amount is positive
-    const totalAmount = this.calculateTotalAmounts(payload.proofs).totalAmount;
+    const totalAmount = calculateTotalAmountFromProofs(payload.proofs);
     if (totalAmount <= 0n) {
       throw WithdrawalValidationError.amountTooLow(
         totalAmount.toString(),
@@ -336,14 +393,6 @@ export class BatchRelayService {
       );
     }
 
-    // If fee commitment provided, validate it
-    if (payload.feeCommitment) {
-      await this.validateFeeCommitment(
-        payload.feeCommitment,
-        batchData.relayFeeBPS,
-        chainId
-      );
-    }
   }
 
   /**
@@ -363,24 +412,6 @@ export class BatchRelayService {
   }
 
   /**
-   * Calculate total withdrawal amounts from proofs
-   */
-  protected calculateTotalAmounts(proofs: ContractWithdrawProof[]): {
-    totalAmount: bigint;
-  } {
-    let totalAmount = 0n;
-
-    for (const proof of proofs) {
-      // ContractWithdrawProof uses pubSignals instead of publicSignals
-      const signals = parseSignals(proof.pubSignals);
-      const amount = signals.withdrawnValue;
-      totalAmount += amount;
-    }
-
-    return { totalAmount };
-  }
-
-  /**
    * Broadcast batch withdrawal to blockchain
    */
   protected async broadcastBatchWithdrawal(
@@ -396,20 +427,5 @@ export class BatchRelayService {
         error instanceof Error ? error.message : "Unknown error"
       );
     }
-  }
-
-  /**
-   * Validate fee commitment if provided
-   */
-  protected async validateFeeCommitment(
-    feeCommitment: FeeCommitment,
-    relayFeeBPS: bigint,
-    chainId: number
-  ) {
-    if (feeCommitment.expiration && Date.now() > feeCommitment.expiration) {
-      throw WithdrawalValidationError.feeCommitmentExpired();
-    }
-
-    // TODO: add signature check
   }
 }

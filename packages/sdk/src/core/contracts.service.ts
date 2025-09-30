@@ -418,9 +418,9 @@ export class ContractInteractionsService implements ContractInteractions {
 
   private formatCommitmentProof(proof: CommitmentProof): {
       pA: [bigint, bigint]; 
-      pB: [[bigint, bigint],[bigint, bigint]], 
+      pB: [[bigint, bigint],[bigint, bigint]];
       pC: [bigint, bigint]; 
-      pubSignals: [bigint,bigint]; // TODO check if commitment proof pubSignals are 2 len 
+      pubSignals: [bigint,bigint,bigint,bigint];
   } {
     if (!proof || !proof.proof) {
       throw DataError.invalidProof(
@@ -450,12 +450,8 @@ export class ContractInteractionsService implements ContractInteractions {
       pubSignals: [
       BigInt(proof.publicSignals[0]!), 
       BigInt(proof.publicSignals[1]!), 
-      // BigInt(proof.publicSignals[2]!), 
-      // BigInt(proof.publicSignals[3]!), 
-      // BigInt(proof.publicSignals[4]!), 
-      // BigInt(proof.publicSignals[5]!), 
-      // BigInt(proof.publicSignals[6]!), 
-      // BigInt(proof.publicSignals[7]!)
+      BigInt(proof.publicSignals[2]!), 
+      BigInt(proof.publicSignals[3]!), 
       ] 
     };
   }

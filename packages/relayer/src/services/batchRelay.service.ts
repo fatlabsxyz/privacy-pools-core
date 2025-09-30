@@ -21,17 +21,13 @@ import {
   BlockchainError,
   ErrorCode,
 } from "../exceptions/base.exception.js";
-import { BatchWithdrawalPayload, ContractWithdrawProof } from "../interfaces/relayer/batchRequest.js";
-import { RelayerResponse, WithdrawalPayload } from "../interfaces/relayer/request.js";
-import { FeeCommitment, BatchFeeCommitment } from "../interfaces/relayer/common.js";
+import { BatchWithdrawalPayload } from "../interfaces/relayer/batchRequest.js";
+import { RelayerResponse } from "../interfaces/relayer/request.js";
 import { web3Provider, SdkProvider, db } from "../providers/index.js";
-import { parseSignals } from "../utils.js";
 import { BatchRelayData } from "../utils/batchRelayEncoder.js";
 import {
   calculateBatchGasUnits,
   calculateTotalAmountFromProofs,
-  BASE_GAS_UNITS,
-  GAS_UNITS_PER_NOTE,
   GAS_PRICE_BUFFER
 } from "../utils/batchRelayUtils.js";
 import { RelayerDatabase } from "../types/db.types.js";
@@ -214,7 +210,6 @@ export class BatchRelayService {
 
     try {
 
-
       // TODO: save all proofs?
       //  const withdrawalProofForDb: WithdrawalProof = {
       //    proof: {
@@ -310,7 +305,6 @@ export class BatchRelayService {
     const processooorAddress = getAddress(payload.withdrawal.processooor);
     const batchFeeRecipient = getAddress(batchData.feeRecipient);
 
-    // XXX: validation shouldn't be duplicated. just one function
     try {
       validateBatchRelayData(batchData);
     } catch (error) {
@@ -365,7 +359,8 @@ export class BatchRelayService {
       const firstContext = firstProof?.pubSignals[7]; // context is at index 7 based on circuit
       for (let i = 1; i < payload.proofs.length; i++) {
         const currentProof = payload.proofs[i];
-        // Validate each proof has exactly 8 public signals (required by contract)
+
+        // Validate each proof has exactly 8 public signals
         if (currentProof && currentProof.pubSignals.length !== 8) {
           throw new WithdrawalValidationError(
             `Proof at index ${i} must have exactly 8 public signals, got ${currentProof.pubSignals.length}`,

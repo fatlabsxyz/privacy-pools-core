@@ -1,22 +1,17 @@
-import { Abi, Account, Address, decodeEventLog, PublicClient, WalletClient, type Hex } from "viem";
+import { Abi, Account, Address, decodeEventLog, PublicClient, WalletClient } from "viem";
 import type {
   BatchWithdrawalPayload,
   Withdrawal,
   WithdrawalProof,
-  WithdrawalProofInput,
-  BatchRelayData,
   BatchRelayResult,
 } from "../types/withdrawal.js";
-import type { AccountCommitment } from "../types/account.js";
 import {
-  encodeBatchRelayData,
   decodeBatchRelayData,
   validateBatchRelayData,
 } from "../utils/batchRelayEncoder.js";
 import { BatchRelayError } from "../errors/batchRelay.error.js";
-import { bigintToHex, calculateContext } from "../crypto.js";
-import type { CommitmentProof, Hash } from "../types/commitment.js";
-import { calculateTotalAmount, calculateBatchAmounts } from "../utils/batchRelayUtils.js";
+import { bigintToHex } from "../crypto.js";
+import type { CommitmentProof } from "../types/commitment.js";
 import { ContractError } from "../errors/base.error.js";
 import { IBatchRelayerABI } from "../abi/IBatchRelayer.js";
 
@@ -120,20 +115,20 @@ export class BatchWithdrawalService {
     }
   }
 
-  /**
-   * Calculate total amount and fees for a batch
-   */
-  calculateBatchAmounts(
-    notes: AccountCommitment[],
-    relayFeeBPS: bigint,
-  ): {
-    totalAmount: bigint;
-    fee: bigint;
-    amountAfterFees: bigint;
-  } {
-    // Calculate batch amounts using utility function
-    return calculateBatchAmounts(notes, relayFeeBPS);
-  }
+  //  /**
+  //   * Calculate total amount and fees for a batch
+  //   */
+  //  calculateBatchAmounts(
+  //    notes: AccountCommitment[],
+  //    relayFeeBPS: bigint,
+  //  ): {
+  //    totalAmount: bigint;
+  //    fee: bigint;
+  //    amountAfterFees: bigint;
+  //  } {
+  //    // Calculate batch amounts using utility function
+  //    return calculateBatchAmounts(notes, relayFeeBPS);
+  //  }
 
   /**
    * Execute a batch relay through the BatchRelayer contract
@@ -232,76 +227,6 @@ export class BatchWithdrawalService {
         "batch relay",
         error instanceof Error ? error : new Error("Unknown error"),
       );
-    }
-  }
-
-  /**
-   * Estimate gas for a batch relay transaction
-   */
-  async estimateBatchRelayGas(
-    batchRelayerAddress: Address,
-    poolAddress: Address,
-    withdrawal: Withdrawal,
-    proofs: WithdrawalProof[],
-  ): Promise<bigint> {
-    try {
-      const formattedProofs = proofs.map((proof, index) => {
-        if (!proof) {
-          throw BatchRelayError.invalidInput(
-            `EstimateGas: Proof ${index + 1} is null or undefined`,
-          );
-        }
-        return this.formatProof(proof);
-      });
-
-      const gas = await this.publicClient.estimateContractGas({
-        address: batchRelayerAddress,
-        abi: IBatchRelayerABI as Abi,
-        functionName: "batchRelay",
-        args: [poolAddress, withdrawal, formattedProofs],
-        account: this.account,
-      });
-
-      return gas;
-    } catch (error) {
-      console.error("Gas Estimation Error:", { error });
-      throw ContractError.gasEstimationFailed(
-        error instanceof Error ? error : new Error("Unknown error"),
-      );
-    }
-  }
-
-  /**
-   * Simulate a batch relay to check if it would succeed
-   */
-  async simulateBatchRelay(
-    batchRelayerAddress: Address,
-    poolAddress: Address,
-    withdrawal: Withdrawal,
-    proofs: WithdrawalProof[],
-  ): Promise<boolean> {
-    try {
-      const formattedProofs = proofs.map((proof, index) => {
-        if (!proof) {
-          throw BatchRelayError.invalidInput(
-            `SimulateBatch: Proof ${index + 1} is null or undefined`,
-          );
-        }
-        return this.formatProof(proof);
-      });
-
-      await this.publicClient.simulateContract({
-        address: batchRelayerAddress,
-        abi: IBatchRelayerABI as Abi,
-        functionName: "batchRelay",
-        args: [poolAddress, withdrawal, formattedProofs],
-        account: this.account,
-      });
-
-      return true;
-    } catch (error) {
-      console.error("Simulation Error:", { error });
-      return false;
     }
   }
 

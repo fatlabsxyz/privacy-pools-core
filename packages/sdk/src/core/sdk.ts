@@ -13,7 +13,6 @@ import { ContractInteractionsService } from "./contracts.service.js";
 import { Hex, Address, Chain, numberToHex } from "viem";
 import { AccountCommitment } from "../types/account.js";
 import { SDKError } from "../errors/base.error.js";
-import { calculateBatchAmounts } from "../utils/batchRelayUtils.js";
 
 /**
  * Main SDK class providing access to all privacy pool functionality.

@@ -9,6 +9,7 @@ import { BatchWithdrawalPayload } from "../interfaces/relayer/batchRequest.js";
 
 export interface SdkProviderInterface {
   verifyWithdrawal(withdrawalPayload: WithdrawalProof): Promise<boolean>;
+  verifyBatchWithdrawal(proofs: WithdrawalProof[]): Promise<boolean>;
   broadcastWithdrawal(
     withdrawalPayload: WithdrawalPayload,
     chainId: number,

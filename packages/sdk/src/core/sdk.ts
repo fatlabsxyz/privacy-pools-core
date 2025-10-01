@@ -13,6 +13,7 @@ import { ContractInteractionsService } from "./contracts.service.js";
 import { Hex, Address, Chain, numberToHex } from "viem";
 import { AccountCommitment } from "../types/account.js";
 import { SDKError } from "../errors/base.error.js";
+import { encodeBatchRelayData } from "../utils/batchRelayEncoder.js";
 
 /**
  * Main SDK class providing access to all privacy pool functionality.
@@ -101,6 +102,28 @@ export class PrivacyPoolSDK {
     return this.withdrawalService.verifyWithdrawal(withdrawalProof);
   }
 
-  // XXX: add proveBatchWithdraw
-  // XXX: add verifyBatchWithdraw
+  /**
+   * Verifies multiple withdrawal proofs for a batch withdrawal.
+   * Returns false if any proof is invalid, true if all are valid.
+   *
+   * @param proofs - Array of withdrawal proofs to verify
+   * @returns Promise resolving to boolean indicating if all proofs are valid
+   */
+  public async verifyBatchWithdrawal(
+    proofs: WithdrawalProof[],
+  ): Promise<boolean> {
+    if (proofs.length === 0) {
+      return false;
+    }
+
+    try {
+      const results = await Promise.all(
+        proofs.map(proof => this.withdrawalService.verifyWithdrawal(proof))
+      );
+
+      return results.every(result => result === true);
+    } catch (error) {
+      return false;
+    }
+  }
 }

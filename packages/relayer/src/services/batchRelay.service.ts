@@ -391,18 +391,26 @@ export class BatchRelayService {
   }
 
   /**
-   * Verify all withdrawal proofs
+   * Verify all withdrawal proofs using SDK batch verification
    */
-  protected async verifyAllProofs(proofs: WithdrawalProof[]): Promise<void> {
-    for (let i = 0; i < proofs.length; i++) {
-      const proof = proofs[i];
-      if (!proof) {
-        throw ZkError.invalidProofAtIndex(i);
-      }
-      const isValid = await this.sdkProvider.verifyWithdrawal(proof);
-      if (!isValid) {
-        throw ZkError.invalidProofAtIndex(i);
-      }
+  protected async verifyAllProofs(
+    originalProofs: Array<{ publicSignals: string[]; proof: { pi_a: string[]; pi_b: string[][]; pi_c: string[] } }>
+  ): Promise<void> {
+    // Convert relayer proof format to SDK WithdrawalProof format
+    const sdkProofs: WithdrawalProof[] = originalProofs.map(proof => ({
+      proof: {
+        pi_a: proof.proof.pi_a,
+        pi_b: proof.proof.pi_b,
+        pi_c: proof.proof.pi_c,
+        protocol: "groth16" as const,
+        curve: "bn128" as const
+      },
+      publicSignals: proof.publicSignals
+    }));
+
+    const isValid = await this.sdkProvider.verifyBatchWithdrawal(sdkProofs);
+    if (!isValid) {
+      throw new ZkError("Batch proof verification failed", ErrorCode.INVALID_PROOF);
     }
   }
 

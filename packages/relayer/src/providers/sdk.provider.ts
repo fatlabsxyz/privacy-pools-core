@@ -117,6 +117,16 @@ export class SdkProvider implements SdkProviderInterface {
   }
 
   /**
+   * Verifies multiple withdrawal proofs for a batch withdrawal.
+   *
+   * @param {WithdrawalProof[]} proofs - Array of withdrawal proofs to verify.
+   * @returns {Promise<boolean>} - A promise resolving to true if all proofs are valid, false otherwise.
+   */
+  async verifyBatchWithdrawal(proofs: WithdrawalProof[]): Promise<boolean> {
+    return await this.sdk.verifyBatchWithdrawal(proofs);
+  }
+
+  /**
    * Broadcasts a withdrawal transaction.
    *
    * @param {WithdrawalPayload} withdrawalPayload - The withdrawal payload.

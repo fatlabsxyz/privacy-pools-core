@@ -21,36 +21,11 @@ import { IBatchRelayerABI } from "../abi/IBatchRelayer.js";
  */
 export class BatchWithdrawalService {
   constructor(
-    // XXX: sacar el WithdrawalService
-    // private readonly withdrawalService: WithdrawalService,
-    // private readonly contractsService: ContractInteractionsService,
     readonly batchRelayerAddress: Address,
     private readonly publicClient: PublicClient,
     private readonly walletClient: WalletClient,
     private readonly account: Account
   ) { }
-
-  //  // matarlo - dejar uno solo 
-  //  async buildBatchWithdrawal(
-  //    notes: AccountCommitment[],
-  //    recipient: Address,
-  //    feeRecipient: Address,
-  //    relayFeeBPS: bigint,
-  //    poolAddress: Address,
-  //    proofInputs: WithdrawalProofInput[],
-  //    scope: Hex,
-  //  ): Promise<BatchWithdrawalPayload> {
-  //  // XXX: mover a root de sdk, no service de batch
-  //  async proveBatchWithdrawal(
-  //    notes: AccountCommitment[],
-  //    batchRelayerAddress: Address,
-  //    recipient: Address,
-  //    feeRecipient: Address,
-  //    relayFeeBPS: bigint,
-  //    poolAddress: Address,
-  //    proofInputs: WithdrawalProofInput[],
-  //    scope: Hex,
-  //  ): Promise<WithdrawalProof[]> {
 
   /**
    * Validate a batch withdrawal before submission

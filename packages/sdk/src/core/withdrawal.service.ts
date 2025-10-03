@@ -124,9 +124,44 @@ export class WithdrawalService {
     };
   }
 
+  /**
+   * Generates withdrawal proofs for N withdrawals in parallel.
+   * Generic method that doesn't know about batch relayer - just proves multiple withdrawals.
+   *
+   * @param commitments - Array of commitments to withdraw
+   * @param inputs - Array of input parameters for each withdrawal
+   * @returns Promise resolving to array of withdrawal proofs
+   * @throws {ProofError} If proof generation fails or array lengths don't match
+   */
+  public async proveNWithdrawals(
+    commitments: (Commitment | AccountCommitment)[],
+    inputs: WithdrawalProofInput[]
+  ): Promise<WithdrawalProof[]> {
+    if (commitments.length !== inputs.length) {
+      throw ProofError.generationFailed({
+        error: `Array length mismatch: ${commitments.length} commitments but ${inputs.length} inputs`
+      });
+    }
 
+    if (commitments.length === 0) {
+      throw ProofError.generationFailed({
+        error: "Cannot prove empty array of withdrawals"
+      });
+    }
 
-  // XXX: wrapper que llama a proveWithdrawal n veces y te devuelve un array de 
-  // parameters: withdrawalProofInputs[], commitments[],
-  // return: WIthdrawalProof[], 
+    try {
+      const proofPromises = commitments.map((commitment, index) =>
+        this.proveWithdrawal(commitment, inputs[index]!)
+      );
+
+      const proofs = await Promise.all(proofPromises);
+
+      return proofs;
+    } catch (error) {
+      console.error('[WithdrawalService] Proof generation failed:', error);
+      throw ProofError.generationFailed({
+        error: error instanceof Error ? error.message : "Unknown error during batch proof generation"
+      });
+    }
+  }
 }

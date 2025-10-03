@@ -126,4 +126,50 @@ export class PrivacyPoolSDK {
       return false;
     }
   }
+
+  /**
+   * Prepares a batch withdrawal payload by generating proofs and encoding batch data.
+   * This is a high-level method that combines proof generation with batch relay data encoding.
+   *
+   * @param commitments - Array of account commitments to withdraw
+   * @param inputs - Array of withdrawal proof inputs (must match commitments length)
+   * @param batchRelayerAddress - Address of the BatchRelayer contract
+   * @param recipient - Final recipient address for withdrawn funds
+   * @param feeRecipient - Address to receive relay fees
+   * @param relayFeeBPS - Relay fee in basis points (0-10000)
+   * @param poolAddress - Address of the privacy pool contract
+   * @returns Promise resolving to BatchWithdrawalPayload ready for submission
+   */
+  public async prepareBatchWithdrawal(
+    commitments: AccountCommitment[],
+    inputs: WithdrawalProofInput[],
+    batchRelayerAddress: Address,
+    recipient: Address,
+    feeRecipient: Address,
+    relayFeeBPS: bigint,
+    poolAddress: Address
+  ): Promise<BatchWithdrawalPayload> {
+    const proofs = await this.withdrawalService.proveNWithdrawals(commitments, inputs);
+
+    const totalValue = inputs.reduce((sum, input) => sum + input.withdrawalAmount, 0n);
+
+    const batchRelayData = encodeBatchRelayData({
+      recipient,
+      feeRecipient,
+      relayFeeBPS,
+      batchSize: proofs.length,
+      totalValue
+    });
+
+    const withdrawal = {
+      processooor: batchRelayerAddress,
+      data: batchRelayData
+    };
+
+    return {
+      withdrawal,
+      proofs,
+      poolAddress
+    };
+  }
 }

@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  relayer-staging:
+    build:
+      context: ../../
+      dockerfile: packages/relayer/Dockerfile.staging
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=staging
+    # volumes:
+    #   - ./.env.staging:/app/relayer/.env

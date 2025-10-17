@@ -1,0 +1,21 @@
+FROM node:20
+
+# copy local SDK and build it
+COPY packages/sdk ./sdk
+WORKDIR ./sdk
+RUN yarn install && yarn build
+
+# copy relayer and install dependencies
+COPY packages/relayer ./relayer
+WORKDIR ./relayer  
+RUN yarn install
+
+# force replace the installed SDK with local build
+RUN rm -rf node_modules/@privacy-pools/sdk
+RUN cp -r ../sdk ./node_modules/@privacy-pools/sdk
+
+# build relayer with local sdk
+RUN yarn build
+
+EXPOSE 3000
+CMD ["yarn", "start"]

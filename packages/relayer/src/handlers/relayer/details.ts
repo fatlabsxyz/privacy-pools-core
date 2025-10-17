@@ -59,7 +59,7 @@ export function relayerDetailsHandler(
       new DetailsMarshall({
         feeBPS: assetConfig.fee_bps,
         feeReceiverAddress: getAddress(feeReceiverAddress),
-        chainId,
+        chainId: 777,
         maxGasPrice: chainConfig.max_gas_price,
         assetAddress: normalizedAssetAddress as Address,
         minWithdrawAmount: assetConfig.min_withdraw_amount

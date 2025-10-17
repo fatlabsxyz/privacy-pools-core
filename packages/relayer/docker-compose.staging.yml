@@ -9,5 +9,9 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=staging
-    # volumes:
-    #   - ./.env.staging:/app/relayer/.env
+    image: relayer-staging
+    volumes:
+      - /tmp/pp_relayer.sqlite:/pp_relayer.sqlite
+      - ./config.example.json:/build/config.json
+      - ../circuits/artifacts:/build/node_modules/@0xbow/privacy-pools-core-sdk/dist/node/artifacts
+    # might have to rebuild the circuit artifacts on sdk

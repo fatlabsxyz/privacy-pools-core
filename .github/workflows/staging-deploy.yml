@@ -4,6 +4,12 @@ on:
   push:
     branches: [staging]
 
+env:
+  ARTIFACT_REPO: 'relayer-staging-github-repository'
+  GCP_REGION: 'us_east1'
+  SERVICE_NAME: 'relayer-staging-github-deployed'
+  IMAGE_NAME: 'relayer-staging'
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -28,7 +34,7 @@ jobs:
         with:
           username: 'oauth2accesstoken'
           password: '${{ steps.auth.outputs.access_token }}'
-          registry: 'us-east1-docker.pkg.dev'
+          registry: '${{ vars.GCP_REGION }}-docker.pkg.dev'
           
       - name: Build and push with local SDK
         uses: docker/build-push-action@v5
@@ -37,8 +43,8 @@ jobs:
           file: packages/relayer/Dockerfile.staging
           push: true
           tags: |
-            us-east1-docker.pkg.dev/${{ vars.GCP_PROJECT }}/privacy-pools-core/staging/relayer:${{ github.sha }}
-            us-east1-docker.pkg.dev/${{ vars.GCP_PROJECT }}/privacy-pools-core/staging/relayer:latest
+            ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT }}/${{ vars.ARTIFACT_REPO }}/${{ vars.IMAGE_NAME }}:${{ github.sha }}
+            ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT }}/${{ vars.ARTIFACT_REPO }}/${{ vars.IMAGE_NAME }}:latest
             
   deploy:
     runs-on: ubuntu-latest
@@ -56,6 +62,6 @@ jobs:
           
       - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy relayer-staging \
-            --image=us-east1-docker.pkg.dev/${{ vars.GCP_PROJECT }}/privacy-pools-core/staging/relayer:${{ github.sha }} \
-            --region=us-east1
+          gcloud run deploy ${{ vars.SERVICE_NAME }} \
+            --image=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT }}/${{ vars.ARTIFACT_REPO }}/${{ vars.IMAGE_NAME }}:${{ github.sha }} \
+            --region=${{ vars.GCP_REGION }}

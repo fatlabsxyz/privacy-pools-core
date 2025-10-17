@@ -31,7 +31,10 @@
     "test": "vitest run --config vitest.config.ts --passWithNoTests",
     "test:cov": "vitest run --config vitest.config.ts --coverage",
     "docker:build": "cd ../circuits && yarn present && cd ../relayer && docker-compose build --no-cache",
-    "docker:run": "docker-compose up"
+    "docker:run": "docker-compose up",
+    "docker:staging:build": "cd ../circuits && yarn present && cd ../relayer && docker-compose -f docker-compose.staging.yml build --no-cache",
+    "docker:staging:up": "docker-compose -f docker-compose.staging.yml up",
+    "docker:staging:down": "docker-compose -f docker-compose.staging.yml down"
   },
   "dependencies": {
     "@0xbow/privacy-pools-core-sdk": "0.1.17",

@@ -1,18 +1,41 @@
 FROM node:20
 
+# install circom compiler
+RUN curl -L https://github.com/iden3/circom/releases/latest/download/circom-linux-amd64 -o /usr/local/bin/circom && \
+    chmod +x /usr/local/bin/circom
+
+# copy workspace files and install root dependencies
+COPY package.json yarn.lock tsconfig.base.json ./
+COPY packages/circuits ./packages/circuits
+RUN yarn install
+
+# compile circuits
+WORKDIR ./packages/circuits
+RUN yarn compile && yarn setup:all
+
 # copy local SDK and build it
-COPY packages/sdk ./sdk
-WORKDIR ./sdk
-RUN yarn install && yarn build
+COPY packages/sdk ./packages/sdk
+# copy tsconfig.base.json to where SDK expects it
+COPY tsconfig.base.json ./tsconfig.base.json
+WORKDIR ./packages/sdk
+RUN yarn install && yarn build && \
+    mkdir -p "./dist/node/artifacts" && \
+    cp "../../build/commitment/groth16_pkey.zkey" "./dist/node/artifacts/commitment.zkey" && \
+    cp "../../build/commitment/groth16_vkey.json" "./dist/node/artifacts/commitment.vkey" && \
+    cp "../../build/withdraw/groth16_pkey.zkey" "./dist/node/artifacts/withdraw.zkey" && \
+    cp "../../build/withdraw/groth16_vkey.json" "./dist/node/artifacts/withdraw.vkey" && \
+    cp "../../build/commitment/commitment_js/commitment.wasm" "./dist/node/artifacts/" && \
+    cp "../../build/withdraw/withdraw_js/withdraw.wasm" "./dist/node/artifacts/"
 
 # copy relayer and install dependencies
-COPY packages/relayer ./relayer
-WORKDIR ./relayer  
+COPY packages/relayer ./packages/relayer
+WORKDIR ./packages/relayer  
 RUN yarn install
 
 # force replace the installed SDK with local build
-RUN rm -rf node_modules/@privacy-pools/sdk
-RUN cp -r ../sdk ./node_modules/@privacy-pools/sdk
+RUN rm -rf node_modules/@0xbow/privacy-pools-core-sdk
+RUN mkdir -p node_modules/@0xbow/privacy-pools-core-sdk
+RUN cp -r ../../.gitignore ../../.rollup.cache ../../README.md ../../__mocks__ ../../configs ../../dist ../../package.json ../../scripts ../../src ../../test ../../tsconfig*.json ../../yarn.lock ./node_modules/@0xbow/privacy-pools-core-sdk/ 2>/dev/null || true
 
 # build relayer with local sdk
 RUN yarn build

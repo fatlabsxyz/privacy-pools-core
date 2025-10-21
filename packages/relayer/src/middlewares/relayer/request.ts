@@ -4,6 +4,11 @@ import { validateDetailsQuerystring } from "../../schemes/relayer/details.scheme
 import { zRelayRequest } from "../../schemes/relayer/request.scheme.js";
 import { validateQuoteBody } from "../../schemes/relayer/quote.scheme.js";
 
+export interface DetailsRequest extends Request { query: DetailsQuery };
+export interface RelayRequest extends Request { body: RelayBody };
+export interface QuoteRequest extends Request { body: QuoteBody };
+
+
 // Middleware to validate the details querying
 export function validateDetailsMiddleware(
   req: Request,

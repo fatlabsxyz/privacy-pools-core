@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getAddress } from "viem";
 import path from "node:path";
+import { ChainId, PrivateKey } from "../types.js";
 
 const zNonNegativeBigInt = z
   .string()
@@ -19,7 +20,7 @@ export const zPkey = z
   .string()
   .regex(/^0x[0-9a-fA-F]+/)
   .length(66)
-  .transform((v) => v as `0x${string}`);
+  .transform((v) => v as PrivateKey);
 
 // Fee BPS validation schema
 export const zFeeBps = z
@@ -48,9 +49,14 @@ export const zNativeCurrency = z.object({
   decimals: z.number().default(18)
 });
 
+export const zChainId = z
+  .string()
+  .or(z.number()).pipe(z.coerce.number().positive())
+  .transform(v => String(v) as ChainId);
+
 // Chain configuration schema
 export const zChainConfig = z.object({
-  chain_id: z.string().or(z.number()).pipe(z.coerce.number().positive()),
+  chain_id: zChainId,
   chain_name: z.string(),
   rpc_url: z.string().url(),
   max_gas_price: zNonNegativeBigInt.optional(),
@@ -75,7 +81,7 @@ export const zDefaultConfig = z.object({
   entrypoint_address: zAddress,
 });
 
-// Complete configuration schema
+// Complete parsed configuration schema
 export const zConfig = z
   .object({
     defaults: zDefaultConfig,

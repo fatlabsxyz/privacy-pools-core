@@ -4,6 +4,7 @@ import { ConfigError, RelayerError } from "../exceptions/base.exception.js";
 import { zConfig } from "./schemas.js";
 import { AssetConfig, ChainConfig } from "./types.js";
 import { getAddress } from "viem";
+import { ChainId } from "../types.js";
 
 /**
  * Reads the configuration file from the path specified in the CONFIG_PATH environment variable
@@ -44,7 +45,7 @@ export const CORS_ALLOW_ALL = config.cors_allow_all;
  * @returns {ChainConfig} The chain configuration
  * @throws {ConfigError} If the chain is not found
  */
-export function getChainConfig(chainId: number): ChainConfig {
+export function getChainConfig(chainId: ChainId): ChainConfig {
   const chainConfig = CONFIG.chains.find(chain => chain.chain_id === chainId);
   if (!chainConfig) {
     throw ConfigError.default(`Chain with ID ${chainId} not supported.`);
@@ -77,7 +78,7 @@ export function getChainConfig(chainId: number): ChainConfig {
  * @param {number} chainId - The chain ID
  * @returns {string} The fee receiver address
  */
-export function getFeeReceiverAddress(chainId: number): string {
+export function getFeeReceiverAddress(chainId: ChainId): string {
   const chainConfig = getChainConfig(chainId);
   return chainConfig.fee_receiver_address || CONFIG.defaults.fee_receiver_address;
 }
@@ -89,7 +90,7 @@ export function getFeeReceiverAddress(chainId: number): string {
  * @param {number} chainId - The chain ID
  * @returns {string} The signer private key
  */
-export function getSignerPrivateKey(chainId: number): string {
+export function getSignerPrivateKey(chainId: ChainId): string {
   const chainConfig = getChainConfig(chainId);
   return chainConfig.signer_private_key || CONFIG.defaults.signer_private_key;
 }
@@ -101,7 +102,7 @@ export function getSignerPrivateKey(chainId: number): string {
  * @param {number} chainId - The chain ID
  * @returns {string} The entrypoint address
  */
-export function getEntrypointAddress(chainId: number): string {
+export function getEntrypointAddress(chainId: ChainId): string {
   const chainConfig = getChainConfig(chainId);
   return chainConfig.entrypoint_address || CONFIG.defaults.entrypoint_address;
 }
@@ -113,7 +114,7 @@ export function getEntrypointAddress(chainId: number): string {
  * @param {string} assetAddress - The asset address
  * @returns {AssetConfig} The asset configuration, or undefined if not found
  */
-export function getAssetConfig(chainId: number, assetAddress: string): AssetConfig {
+export function getAssetConfig(chainId: ChainId, assetAddress: string): AssetConfig {
   const chainConfig = getChainConfig(chainId);
 
   if (!chainConfig.supported_assets) {

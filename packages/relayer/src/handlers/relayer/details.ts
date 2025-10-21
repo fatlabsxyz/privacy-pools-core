@@ -1,9 +1,8 @@
-import { NextFunction, Request, Response } from "express";
+import { NextFunction, Response } from "express";
 import { DetailsMarshall } from "../../types.js";
-import { getAddress } from "viem/utils";
-import { Address } from "viem/accounts";
 import { CONFIG, getAssetConfig, getChainConfig } from "../../config/index.js";
 import { ValidationError } from "../../exceptions/base.exception.js";
+import { DetailsRequest } from "../../middlewares/index.js";
 
 /**
  * Handler for the relayer details endpoint.
@@ -15,28 +14,13 @@ import { ValidationError } from "../../exceptions/base.exception.js";
  * @param {NextFunction} next - The next middleware function.
  */
 export function relayerDetailsHandler(
-  req: Request,
+  req: DetailsRequest,
   res: Response,
   next: NextFunction,
 ) {
   // Get query parameters
-  const chainIdParam = req.query.chainId as string;
-  const assetAddressParam = req.query.assetAddress as string;
-
-  // Parse chain ID
-  const parsedChainId = parseInt(chainIdParam, 10);
-  if (isNaN(parsedChainId)) {
-    throw ValidationError.invalidInput({ message: "Invalid chain ID format" });
-  }
-  const chainId = parsedChainId;
-
-  // Validate asset address format
-  let normalizedAssetAddress: string;
-  try {
-    normalizedAssetAddress = getAddress(assetAddressParam);
-  } catch {
-    throw ValidationError.invalidInput({ message: "Invalid asset address format" });
-  }
+  const chainId = req.parsedQuery.chainId;
+  const assetAddress = req.parsedQuery.assetAddress;
 
   // Get chain configuration
   const chainConfig = getChainConfig(chainId);
@@ -45,11 +29,11 @@ export function relayerDetailsHandler(
   const feeReceiverAddress = chainConfig.fee_receiver_address || CONFIG.defaults.fee_receiver_address;
 
   // Get asset configuration  
-  const assetConfig = getAssetConfig(chainId, normalizedAssetAddress);
+  const assetConfig = getAssetConfig(chainId, assetAddress);
 
   if (!assetConfig) {
     throw ValidationError.invalidInput({
-      message: `Asset ${normalizedAssetAddress} not supported on chain ${chainId}`
+      message: `Asset ${assetAddress} not supported on chain ${chainId}`
     });
   }
 
@@ -58,10 +42,10 @@ export function relayerDetailsHandler(
     res.locals.marshalResponse(
       new DetailsMarshall({
         feeBPS: assetConfig.fee_bps,
-        feeReceiverAddress: getAddress(feeReceiverAddress),
+        feeReceiverAddress: feeReceiverAddress,
         chainId,
         maxGasPrice: chainConfig.max_gas_price,
-        assetAddress: normalizedAssetAddress as Address,
+        assetAddress: assetAddress,
         minWithdrawAmount: assetConfig.min_withdraw_amount
       })
     )

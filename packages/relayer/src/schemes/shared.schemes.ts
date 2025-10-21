@@ -5,7 +5,7 @@ import { ChainId, PrivateKey } from "../types.js";
 export const zChainId = z
   .string()
   .or(z.number()).pipe(z.coerce.number().positive())
-  .transform(v => String(v) as ChainId);
+  .transform(v => v as ChainId);
 
 export const zNonNegativeBigInt = z
   .string()

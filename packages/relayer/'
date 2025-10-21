@@ -4,7 +4,7 @@ import { DetailsQuery, validateDetailsQuerystring } from "../../schemes/relayer/
 import { QuoteBody, validateQuoteBody } from "../../schemes/relayer/quote.scheme.js";
 import { RelayBody, validateRelayRequestBody } from "../../schemes/relayer/request.scheme.js";
 
-export interface DetailsRequest extends Request { parsedQuery: DetailsQuery };
+export interface DetailsRequest extends Request { query: DetailsQuery };
 export interface RelayRequest extends Request { body: RelayBody };
 export interface QuoteRequest extends Request { body: QuoteBody };
 
@@ -21,7 +21,7 @@ export function validateDetailsMiddleware(
     next(ValidationError.invalidQuerystring({ message: messages.join("\n") }));
     return;
   }
-  (req as DetailsRequest).parsedQuery = result.data;
+  req.query = result.data;
   next();
 }
 
@@ -42,19 +42,19 @@ export function validateRelayRequestMiddleware(
   next();
 }
 
+
 // Middleware to validate the quote
 export function validateQuoteMiddleware(
   req: Request,
   res: Response,
   next: NextFunction,
 ) {
-  const result = validateQuoteBody(req.body);
-  if (!result.success) {
+  const request = validateQuoteBody(req.body);
+  if (!request.success) {
     const messages: string[] = [];
-    result.errors?.forEach(e => e?.message ? messages.push(e.message) : undefined);
+    request.errors?.forEach(e => e?.message ? messages.push(e.message) : undefined);
     next(ValidationError.invalidInput({ message: messages.join("\n") }));
     return;
   }
-  req.body = result.data;
   next();
 }

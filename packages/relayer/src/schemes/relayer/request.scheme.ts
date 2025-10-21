@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { zChainId, zFeeCommitment } from "../shared.schemes.js";
+import { zChainId, zFeeCommitment, zAddress } from "../shared.schemes.js";
 
 const zWithdrawal = z.object({
-  processooor: z.string(),
+  processooor: zAddress,
   data: z.string(),
 });
 
@@ -17,7 +17,7 @@ const zProof = z.object({
   pi_c: z.array(z.string()).min(1),
 });
 
-const zRelayRequestSchema = z.object({
+const zRelayRequest = z.object({
   withdrawal: zWithdrawal,
   publicSignals: zPublicSignals,
   proof: zProof,
@@ -26,10 +26,12 @@ const zRelayRequestSchema = z.object({
   feeCommitment: zFeeCommitment.optional(),
 });
 
+export type RelayBody = z.infer<typeof zRelayRequest>; 
+
 export const validateRelayRequestBody = (data: unknown) => {
-  const result = zRelayRequestSchema.safeParse(data);
+  const result = zRelayRequest.safeParse(data);
   return {
-    success: result.success,
+    ...result,
     errors: result.success ? undefined : result.error.errors.map(err => ({ 
       message: `${err.path.join('.')}: ${err.message}` 
     }))

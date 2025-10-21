@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { zFeeCommitment } from "../shared.schemes.js";
+import { zFeeCommitment, zAddress } from "../shared.schemes.js";
 
 // proof payload schema
 const zProofPayload = z.object({
@@ -16,7 +16,7 @@ const zBatchProof = z.object({
 
 // withdrawal schema
 const zWithdrawal = z.object({
-  processooor: z.string(),
+  processooor: zAddress,
   data: z.string(),
 });
 

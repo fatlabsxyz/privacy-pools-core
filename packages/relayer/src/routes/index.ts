@@ -13,20 +13,20 @@ import {
 // Router setup
 const relayerRouter = Router();
 
-relayerRouter.get("/details", [
+relayerRouter.get("/details", 
   validateDetailsMiddleware,
   relayerDetailsHandler
-]);
+);
 
-relayerRouter.post("/request", [
+relayerRouter.post("/request", 
   validateRelayRequestMiddleware,
-  relayRequestHandler,
-]);
+  relayRequestHandler
+);
 
-relayerRouter.post("/quote", [
+relayerRouter.post("/quote", 
   validateQuoteMiddleware,
   relayQuoteHandler
-]);
+);
 
 
 export { relayerRouter };

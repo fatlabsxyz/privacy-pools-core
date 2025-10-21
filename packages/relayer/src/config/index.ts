@@ -3,8 +3,8 @@ import path from "node:path";
 import { ConfigError, RelayerError } from "../exceptions/base.exception.js";
 import { zConfig } from "./schemas.js";
 import { AssetConfig, ChainConfig } from "./types.js";
-import { getAddress } from "viem";
-import { ChainId } from "../types.js";
+import { Address, getAddress } from "viem";
+import { ChainId, PrivateKey } from "../types.js";
 
 /**
  * Reads the configuration file from the path specified in the CONFIG_PATH environment variable
@@ -78,7 +78,7 @@ export function getChainConfig(chainId: ChainId): ChainConfig {
  * @param {number} chainId - The chain ID
  * @returns {string} The fee receiver address
  */
-export function getFeeReceiverAddress(chainId: ChainId): string {
+export function getFeeReceiverAddress(chainId: ChainId): Address {
   const chainConfig = getChainConfig(chainId);
   return chainConfig.fee_receiver_address || CONFIG.defaults.fee_receiver_address;
 }
@@ -90,7 +90,7 @@ export function getFeeReceiverAddress(chainId: ChainId): string {
  * @param {number} chainId - The chain ID
  * @returns {string} The signer private key
  */
-export function getSignerPrivateKey(chainId: ChainId): string {
+export function getSignerPrivateKey(chainId: ChainId): PrivateKey {
   const chainConfig = getChainConfig(chainId);
   return chainConfig.signer_private_key || CONFIG.defaults.signer_private_key;
 }
@@ -102,7 +102,7 @@ export function getSignerPrivateKey(chainId: ChainId): string {
  * @param {number} chainId - The chain ID
  * @returns {string} The entrypoint address
  */
-export function getEntrypointAddress(chainId: ChainId): string {
+export function getEntrypointAddress(chainId: ChainId): Address {
   const chainConfig = getChainConfig(chainId);
   return chainConfig.entrypoint_address || CONFIG.defaults.entrypoint_address;
 }
@@ -114,7 +114,7 @@ export function getEntrypointAddress(chainId: ChainId): string {
  * @param {string} assetAddress - The asset address
  * @returns {AssetConfig} The asset configuration, or undefined if not found
  */
-export function getAssetConfig(chainId: ChainId, assetAddress: string): AssetConfig {
+export function getAssetConfig(chainId: ChainId, assetAddress: Address): AssetConfig {
   const chainConfig = getChainConfig(chainId);
 
   if (!chainConfig.supported_assets) {
@@ -135,7 +135,7 @@ export function getAssetConfig(chainId: ChainId, assetAddress: string): AssetCon
 
 
 export const FRAXUSD_ADDRESS = getAddress("0xCAcd6fd266aF91b8AeD52aCCc382b4e165586E29");  // FRAXUSD
-export const WOETH_ADDRESS = getAddress("0xDcEe70654261AF21C44c093C300eD3Bb97b78192");  // WOETH
+export const WOETH_ADDRESS   = getAddress("0xDcEe70654261AF21C44c093C300eD3Bb97b78192");  // WOETH
 export const EXCEPTION_TOKENS = [
   FRAXUSD_ADDRESS,
   WOETH_ADDRESS

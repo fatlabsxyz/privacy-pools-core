@@ -1,4 +1,4 @@
-import { NextFunction, Request, Response } from "express";
+import { NextFunction, Response } from "express";
 import { CONFIG, getChainConfig, isExceptionToken } from "../../config/index.js";
 import { ConfigError, ValidationError, RelayerError } from "../../exceptions/base.exception.js";
 import {
@@ -6,9 +6,10 @@ import {
   WithdrawalPayload,
 } from "../../interfaces/relayer/request.js";
 import { web3Provider } from "../../providers/index.js";
-import { zRelayRequest } from "../../schemes/relayer/request.scheme.js";
 import { privacyPoolRelayer } from "../../services/index.js";
-import { RequestMashall } from "../../types.js";
+import { ChainId, RequestMashall } from "../../types.js";
+import { RelayRequest } from "../../middlewares/relayer/request.js";
+import { RelayBody } from "../../schemes/relayer/request.scheme.js";
 
 /**
  * Converts a RelayRequestBody into a WithdrawalPayload.
@@ -17,7 +18,7 @@ import { RequestMashall } from "../../types.js";
  * @returns {WithdrawalPayload} - The formatted withdrawal payload.
  */
 function relayRequestBodyToWithdrawalPayload(
-  body: ReturnType<typeof zRelayRequest['parse']>,
+  body: RelayBody,
 ): WithdrawalPayload {
   return {
     ...body,
@@ -38,7 +39,7 @@ function relayRequestBodyToWithdrawalPayload(
  * @param {number} chainId - The chain ID to check.
  * @returns {boolean} - Whether the chain is supported.
  */
-function isChainSupported(chainId: number): boolean {
+function isChainSupported(chainId: ChainId): boolean {
   return CONFIG.chains.some(chain => chain.chain_id === chainId);
 }
 
@@ -50,46 +51,16 @@ function isChainSupported(chainId: number): boolean {
  * @throws {ValidationError} - If the input data is invalid.
  * @throws {ConfigError} - If the chain is not supported.
  */
-function parseWithdrawal(body: Request["body"]): { payload: WithdrawalPayload, chainId: number } {
-  const validation = validateRelayRequestBody(body);
-  if (validation.success) {
-    try {
-      const payload = relayRequestBodyToWithdrawalPayload(body);
-      const chainId = typeof body.chainId === 'string' ? parseInt(body.chainId, 10) : body.chainId;
+function parseWithdrawal(body: RelayRequest["body"]): { payload: WithdrawalPayload, chainId: ChainId } {
 
-  const { data, error, success } = zRelayRequest.safeParse(body);
-
-      // Check if the chain is supported early
-      if (!isChainSupported(chainId)) {
-        throw ValidationError.invalidInput({ message: `Chain with ID ${chainId} not supported.` });
-      }
-
-      return { payload, chainId };
-    } catch (error) {
-      console.error(error);
-      // Re-throw ConfigError as is
-      if (error instanceof ConfigError) {
-        throw error;
-      }
-      // TODO: extend this catch to return more details about the issue (viem error, node error, etc)
-      throw ValidationError.invalidInput({
-        message: "Can't parse payload into SDK structure",
-      });
-    }
-  } else {
-    const messages = validation.errors?.map(e => e.message).join(", ") || "Payload format error";
-    throw ValidationError.invalidInput({ message: messages });
-  }
-
-  const payload = relayRequestBodyToWithdrawalPayload(data);
+  const payload = relayRequestBodyToWithdrawalPayload(body);
+  const chainId = body.chainId;
 
   // Check if the chain is supported early
-  if (!isChainSupported(data.chainId)) {
-    throw ValidationError.invalidInput({ message: `Chain with ID ${data.chainId} not supported.` });
+  if (!isChainSupported(chainId)) {
+    throw ValidationError.invalidInput({ message: `Chain with ID ${chainId} not supported.` });
   }
-
-  return { payload, chainId: data.chainId };
-
+  return { payload, chainId };
 }
 
 /**
@@ -100,7 +71,7 @@ function parseWithdrawal(body: Request["body"]): { payload: WithdrawalPayload, c
  * @param {NextFunction} next - The next middleware function.
  */
 export async function relayRequestHandler(
-  req: Request,
+  req: RelayRequest,
   res: Response,
   next: NextFunction,
 ) {

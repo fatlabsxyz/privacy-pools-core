@@ -8,6 +8,7 @@ import { QuoteMarshall } from "../../types.js";
 import { encodeWithdrawalData, isFeeReceiverSameAsSigner, isNative } from "../../utils.js";
 import { privateKeyToAccount } from "viem/accounts";
 import { QuoteFee } from "../../services/quote.service.js";
+import { QuoteRequest } from "../../middlewares/index.js";
 
 // const TIME_20_SECS = 20 * 1000;
 const TIME_60_SECS = 60 * 1000;
@@ -15,14 +16,14 @@ const TIME_60_SECS = 60 * 1000;
 const EXPIRATION_TIME = TIME_60_SECS;
 
 export async function relayQuoteHandler(
-  req: Request,
+  req: QuoteRequest,
   res: Response,
   next: NextFunction,
 ) {
 
-  const chainId = Number(req.body.chainId!);
-  const amountIn = BigInt(req.body.amount!.toString());
-  const asset = getAddress(req.body.asset!.toString());
+  const chainId = req.body.chainId;
+  const amountIn = req.body.amount;
+  const asset = req.body.asset;
   let extraGas = Boolean(req.body.extraGas);
 
   const config = getAssetConfig(chainId, asset);

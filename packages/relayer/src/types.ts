@@ -2,12 +2,12 @@ import { Address } from "viem/accounts";
 import { RelayerResponse } from "./interfaces/relayer/request.js";
 import { QuoteResponse } from "./interfaces/relayer/quote.js";
 import { FeeCommitment } from "./interfaces/relayer/common.js";
-import { Chain } from "viem";
 
 export type PrivateKey = `0x${string}`;
 
-export type ToString<T> = T extends string | number ? `${T}` : never
-export type ChainId = ToString< string | number > & { readonly __brand: "ChainId" };
+// export type ToString<T> = T extends string | number ? `${T}` : never
+// export type ChainId = ToString< string | number > & { readonly __brand: "ChainId" };
+export type ChainId = number & { readonly __brand: "ChainId" };
 
 export abstract class RelayerMarshall {
   abstract toJSON(): object;

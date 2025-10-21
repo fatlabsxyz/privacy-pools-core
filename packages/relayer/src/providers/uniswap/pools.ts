@@ -5,6 +5,7 @@ import { getAddress, getContract, toHex } from "viem";
 import { getV3Factory } from "./constants.js";
 import { web3Provider } from "../index.js";
 import { v3PoolABI } from "./abis/v3pool.abi.js";
+import { ChainId } from "../../types.js";
 
 
 function sortTokens(tokenA: Token, tokenB: Token): [Token, Token] {
@@ -13,7 +14,7 @@ function sortTokens(tokenA: Token, tokenB: Token): [Token, Token] {
     : [tokenB, tokenA];
 }
 
-export async function getPool(chainId: number, tokenA: Token, tokenB: Token, fee: FeeAmount) {
+export async function getPool(chainId: ChainId, tokenA: Token, tokenB: Token, fee: FeeAmount) {
 
   const V3_FACTORY = getV3Factory(chainId);
 
@@ -38,7 +39,7 @@ export async function getPool(chainId: number, tokenA: Token, tokenB: Token, fee
   return pool;
 }
 
-export async function getPoolPath(tokenIn: `0x${string}`, chainId: number) {
+export async function getPoolPath(tokenIn: `0x${string}`, chainId: ChainId) {
   const weth = WETH9[chainId]!;
   const TokenIn = new Token(chainId, tokenIn, 1);
   const pool = await getPool(chainId, TokenIn, weth, FeeAmount.LOW); // 0.05% fee tier

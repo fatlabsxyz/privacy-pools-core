@@ -19,6 +19,7 @@ import {
 import { FeeDataAbi } from "./types/abi.types.js";
 import { getFeeReceiverAddress, getSignerPrivateKey } from "./config/index.js";
 import { privateKeyToAccount } from "viem/accounts";
+import { ChainId } from "./types.js";
 
 interface WithdrawalData {
   recipient: Address,
@@ -85,7 +86,7 @@ export function parseSignals(
  * @returns {Chain} - The Chain object
  */
 export function createChainObject(chainConfig: {
-  chain_id: number;
+  chain_id: ChainId;
   chain_name: string;
   rpc_url: string;
   native_currency?: { name: string; symbol: string; decimals: number; };
@@ -113,7 +114,7 @@ export function isViemError(error: unknown): error is ViemError {
   return viemErrorNames.includes(error?.constructor?.name || "");
 }
 
-export function isFeeReceiverSameAsSigner(chainId: number) {
+export function isFeeReceiverSameAsSigner(chainId: ChainId) {
   const feeReceiverAddress = getFeeReceiverAddress(chainId);
   const signerAddress = privateKeyToAccount(getSignerPrivateKey(chainId) as `0x${string}`).address;
   return feeReceiverAddress.toLowerCase() === signerAddress.toLowerCase();

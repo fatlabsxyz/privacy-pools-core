@@ -3,6 +3,7 @@ import { Address, CustomSource, getContract } from "viem";
 import { web3Provider } from "../index.js";
 import { Permit2ABI } from "./abis/permit2.abi.js";
 import { createPermitSingleData, PermitSingle } from "./permit2.js";
+import { ChainId } from "../../types.js";
 
 export async function createPermit2<Signer extends CustomSource>({
   signer,
@@ -13,7 +14,7 @@ export async function createPermit2<Signer extends CustomSource>({
   allowanceAmount,
 }: {
   signer: Signer,
-  chainId: number,
+  chainId: ChainId,
   permit2Address: Address,
   routerAddress: Address,
   assetAddress: Address,

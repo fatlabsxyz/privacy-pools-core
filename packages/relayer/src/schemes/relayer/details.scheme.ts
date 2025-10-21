@@ -1,15 +1,18 @@
 import { z } from "zod";
 import { zAddress, zChainId } from "../shared.schemes.js";
 
-const zDetailsRequestSchema = z.object({
+const zDetailsRequest = z.object({
   chainId: zChainId,
   assetAddress: zAddress,
 });
 
+export type DetailsQuery = z.infer<typeof zDetailsRequest>;
+
 export const validateDetailsQuerystring = (data: unknown) => {
-  const result = zDetailsRequestSchema.safeParse(data);
+  const result = zDetailsRequest.safeParse(data);
+
   return {
-    success: result.success,
+    ...result,
     errors: result.success ? undefined : result.error.errors.map(err => ({ 
       message: `${err.path.join('.')}: ${err.message}` 
     }))

@@ -6,13 +6,14 @@ import {
 } from "../config/index.js";
 import { FeeCommitment } from "../interfaces/relayer/common.js";
 import { createChainObject } from "../utils.js";
+import { ChainId } from "../types.js";
 
 interface IWeb3Provider {
-  client(chainId: number): PublicClient;
-  getGasPrice(chainId: number): Promise<bigint>;
+  client(chainId: ChainId): PublicClient;
+  getGasPrice(chainId: ChainId): Promise<bigint>;
 }
 
-const domain = (chainId: number) => ({
+const domain = (chainId: ChainId) => ({
   name: "Privacy Pools Relayer",
   version: "1",
   chainId,
@@ -32,7 +33,7 @@ const RelayerCommitmentTypes = {
  * Class representing the provider for interacting with several chains
  */
 export class Web3Provider implements IWeb3Provider {
-  chains: { [key: number]: Chain; };
+  chains: { [key: ChainId]: Chain; };
   clients: { [key: number]: PublicClient; };
   signers: { [key: number]: WalletClient; };
 
@@ -49,9 +50,9 @@ export class Web3Provider implements IWeb3Provider {
         })];
     }));
     this.signers = Object.fromEntries(Object.entries(this.chains).map(([chainId, chain]) => {
-      const account = privateKeyToAccount(getSignerPrivateKey(Number(chainId)) as `0x${string}`);
+      const account = privateKeyToAccount(getSignerPrivateKey(Number(chainId) as ChainId)); // TODO not sure why this has to be casted it should be number
       return [
-        Number(chainId),
+        chainId,
         createWalletClient({
           account,
           chain,
@@ -61,7 +62,7 @@ export class Web3Provider implements IWeb3Provider {
 
   }
 
-  client(chainId: number): PublicClient {
+  client(chainId: ChainId): PublicClient {
     const client = this.clients[chainId];
     if (client === undefined) {
       throw Error(`Web3ProviderError::UnsupportedChainId(${chainId})`);
@@ -77,11 +78,11 @@ export class Web3Provider implements IWeb3Provider {
     else return signer;
   }
 
-  async getGasPrice(chainId: number): Promise<bigint> {
+  async getGasPrice(chainId: ChainId): Promise<bigint> {
     return await this.client(chainId).getGasPrice();
   }
 
-  async signRelayerCommitment(chainId: number, commitment: Omit<FeeCommitment, 'signedRelayerCommitment'>) {
+  async signRelayerCommitment(chainId: ChainId, commitment: Omit<FeeCommitment, 'signedRelayerCommitment'>) {
     const signer = privateKeyToAccount(getSignerPrivateKey(chainId) as Hex);
     const { withdrawalData, expiration, extraGas, amount, asset } = commitment;
     return signer.signTypedData({
@@ -98,7 +99,7 @@ export class Web3Provider implements IWeb3Provider {
     });
   }
 
-  async verifyRelayerCommitment(chainId: number, commitment: FeeCommitment): Promise<boolean> {
+  async verifyRelayerCommitment(chainId: ChainId, commitment: FeeCommitment): Promise<boolean> {
     const signer = privateKeyToAccount(getSignerPrivateKey(chainId) as Hex);
     const { withdrawalData, asset, expiration, amount, extraGas, signedRelayerCommitment } = commitment;
     return verifyTypedData({

@@ -29,6 +29,7 @@ import { uniswapProvider } from "../providers/index.js";
 import { WRAPPED_NATIVE_TOKEN_ADDRESS } from "../providers/uniswap/constants.js";
 import { Withdrawal, WithdrawalProof } from "@0xbow/privacy-pools-core-sdk";
 import { privateKeyToAccount } from "viem/accounts";
+import { ChainId } from "../types.js";
 
 /**
  * Class representing the Privacy Pool Relayer, responsible for processing withdrawal requests.
@@ -59,7 +60,7 @@ export class PrivacyPoolRelayer {
    * @param {number} chainId - The chain ID to process the request on.
    * @returns {Promise<RelayerResponse>} - A promise resolving to the relayer response.
    */
-  async handleRequest(req: WithdrawalPayload, chainId: number): Promise<RelayerResponse> {
+  async handleRequest(req: WithdrawalPayload, chainId: ChainId): Promise<RelayerResponse> {
     const requestId = crypto.randomUUID();
     const timestamp = Date.now();
 
@@ -139,7 +140,7 @@ export class PrivacyPoolRelayer {
     }
   }
 
-  async swapForNativeAndFund(scope: bigint, withdrawal: Withdrawal, proof: WithdrawalProof, chainId: number, relayTx: string) {
+  async swapForNativeAndFund(scope: bigint, withdrawal: Withdrawal, proof: WithdrawalProof, chainId: ChainId, relayTx: string) {
 
     const { assetAddress } = await this.sdkProvider.scopeData(scope, chainId);
     if (isNative(assetAddress)) {
@@ -151,7 +152,7 @@ export class PrivacyPoolRelayer {
     const { gasUsed: relayGasUsed, effectiveGasPrice: relayGasPrice } = relayReceipt;
 
     const assetConfig = getAssetConfig(chainId, assetAddress);
-    const feeReceiver = getFeeReceiverAddress(chainId) as Address;
+    const feeReceiver = getFeeReceiverAddress(chainId);
     const { recipient, relayFeeBPS } = decodeWithdrawalData(withdrawal.data);
     const withdrawnValue = parseSignals(proof.publicSignals).withdrawnValue;
     const gasPrice = await web3Provider.getGasPrice(chainId);
@@ -218,10 +219,10 @@ export class PrivacyPoolRelayer {
    * @throws {WithdrawalValidationError} - If validation fails.
    * @throws {ValidationError} - If public signals are malformed.
    */
-  protected async validateWithdrawal(wp: WithdrawalPayload, chainId: number) {
+  protected async validateWithdrawal(wp: WithdrawalPayload, chainId: ChainId) {
     const entrypointAddress = getEntrypointAddress(chainId);
     const feeReceiverAddress = getFeeReceiverAddress(chainId);
-    const signerAddress = privateKeyToAccount(getSignerPrivateKey(chainId) as `0x${string}`).address;
+    const signerAddress = privateKeyToAccount(getSignerPrivateKey(chainId)).address;
 
     const extraGas = wp.feeCommitment?.extraGas ?? false;
 
@@ -342,6 +343,6 @@ function commitmentExpired(feeCommitment: FeeCommitment): boolean {
   return feeCommitment.expiration < Number(new Date());
 }
 
-async function validFeeCommitment(chainId: number, feeCommitment: FeeCommitment): Promise<boolean> {
+async function validFeeCommitment(chainId: ChainId, feeCommitment: FeeCommitment): Promise<boolean> {
   return web3Provider.verifyRelayerCommitment(chainId, feeCommitment);
 }

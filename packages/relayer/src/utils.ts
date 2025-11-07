@@ -21,6 +21,11 @@ import { getFeeReceiverAddress, getSignerPrivateKey } from "./config/index.js";
 import { privateKeyToAccount } from "viem/accounts";
 import { ChainId } from "./types.js";
 
+
+export const JSONStringifyBigInt = (json_string: object) => {
+  return JSON.stringify(json_string, (_: string, v: unknown) => typeof v === 'bigint' ? v.toString() : v, 2);
+};
+
 interface WithdrawalData {
   recipient: Address,
   feeRecipient: Address,

@@ -44,9 +44,15 @@ export const zVariableChainConfig = z.object({
   native_currency: zNativeCurrency.optional(),
 });
 
-// Chain configuration schema
-export const zChainConfig = zVariableChainConfig
+export const zRawChainConfig = zVariableChainConfig
   .merge(zSecretConfig.partial())
+  .strict();
+
+export const zChainConfig = zVariableChainConfig
+  .merge(zSecretConfig)
+  .merge(z.object({
+    entrypoint_address: zAddress
+  }))
   .strict();
 
 
@@ -61,23 +67,54 @@ export const zCommonConfig = z.object({
 export const zDefaultConfig = z.object({
   fee_receiver_address: zAddress.optional(),
   signer_private_key: zPrivateKey.optional(),
-  entrypoint_address: zAddress,
+  entrypoint_address: zAddress.optional(),
 });
 
-// Complete parsed configuration schema
-export const zConfig = z
+// Raw configuration schema (with optional fields)
+export const zRawConfig = z
   .object({
     defaults: zDefaultConfig.optional(),
-    chains: z.array(zChainConfig),
+    chains: z.array(zRawChainConfig),
     sqlite_db_path: zCommonConfig.shape.sqlite_db_path,
     cors_allow_all: zCommonConfig.shape.cors_allow_all,
     allowed_domains: zCommonConfig.shape.allowed_domains,
   })
-  .strict()
+  .strict();
 
-// export const zConfig = zVariableConfig.required({
-//   defaults: true 
-// }).readonly();
+export const zConfig = zRawConfig.transform((data) => {
+  const resolvedChains = data.chains.map(chain => {
+    const fee_receiver_address = chain.fee_receiver_address ?? data.defaults?.fee_receiver_address;
+    const signer_private_key = chain.signer_private_key ?? data.defaults?.signer_private_key;
+    const entrypoint_address = chain.entrypoint_address ?? data.defaults?.entrypoint_address;
+    
+    if (!fee_receiver_address) {
+      throw new Error(`Chain ${chain.chain_id} missing fee_receiver_address (not in chain or defaults)`);
+    }
+    if (!signer_private_key) {
+      throw new Error(`Chain ${chain.chain_id} missing signer_private_key (not in chain or defaults)`);
+    }
+    if (!entrypoint_address) {
+      throw new Error(`Chain ${chain.chain_id} missing entrypoint_address (not in chain or defaults)`);
+    }
+    
+    return {
+      ...chain,
+      fee_receiver_address,
+      signer_private_key,
+      entrypoint_address
+    };
+  });
+  
+  return {
+    ...data,
+    chains: resolvedChains
+  };
+}).pipe(z.object({
+  chains: z.array(zChainConfig),
+  sqlite_db_path: z.string(),
+  cors_allow_all: z.boolean(),
+  allowed_domains: z.array(z.string()),
+}));
 
 export const zUpdateChainConfig = zVariableChainConfig
   .partial().readonly();

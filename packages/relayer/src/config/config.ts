@@ -2,12 +2,12 @@ import { access, readFile, writeFile } from "node:fs/promises";
 import { PathLike, WatchEventType, watch } from "node:fs";
 import { resolve } from "node:path";
 
-import { Observable, firstValueFrom, take, map, debounceTime, share, shareReplay, startWith, switchMap, catchError, lastValueFrom, of} from "rxjs";
+import { Observable, firstValueFrom, take, map, debounceTime, share, shareReplay, startWith, switchMap, catchError } from "rxjs";
 import { ConfigError } from "../exceptions/base.exception.js";
 import { PrivateKey, ChainId } from "../types.js";
 import { JSONStringifyBigInt } from "../utils.js";
-import { UpdateConfigBody, DeleteConfigBody, zConfig } from "./schemas.js";
-import { AssetConfig, ChainConfig, Config } from "./types.js";
+import { UpdateConfigBody, DeleteConfigBody, zConfig, zRawConfig, zRawChainConfig, zChainConfig } from "./schemas.js";
+import { AssetConfig, ChainConfig, Config, RawConfig, SafeConfig } from "./types.js";
 import { Address, getAddress } from "viem";
 
 
@@ -24,6 +24,7 @@ export class RelayerConfig {
   private configBackupPath: string | undefined = undefined;
 
   public readonly watcher$: Observable<Config>;
+  private rawConfigCache?: RawConfig; // Cache the original raw config
 
   constructor() {
     this.configPathString = resolve(process.env["CONFIG_PATH"] || "./config.json");
@@ -88,12 +89,48 @@ export class RelayerConfig {
   }
 
   /**
+   * Gets the effective fee receiver address for a chain.
+   * 
+   * @param {number} chainId - The chain ID
+   * @returns {string} The fee receiver address (guaranteed to be present after config resolution)
+   */
+  async getFeeReceiverAddress(chainId: ChainId): Promise<Address> {
+    const config = await this.getConfig();
+    const chainConfig = this.getChainConfigFromConfigObject(config, chainId);
+    return chainConfig.fee_receiver_address;
+  }
+
+  /**
+   * Gets the effective signer private key for a chain.
+   * 
+   * @param {number} chainId - The chain ID
+   * @returns {string} The signer private key (guaranteed to be present after config resolution)
+   */
+  async getSignerPrivateKey(chainId: ChainId): Promise<PrivateKey> {
+    const config = await this.getConfig();
+    const chainConfig = this.getChainConfigFromConfigObject(config, chainId);
+    return chainConfig.signer_private_key; 
+  }
+
+  /**
+   * Gets the effective entrypoint address for a chain.
+   * 
+   * @param {number} chainId - The chain ID
+   * @returns {string} The entrypoint address (guaranteed to be present after config resolution)
+   */
+  async getEntrypointAddress(chainId: ChainId): Promise<Address> {
+    const config = await this.getConfig();
+    const chainConfig = this.getChainConfigFromConfigObject(config, chainId);
+    return chainConfig.entrypoint_address;
+  }
+
+  /**
    * Update configuration values and save a copy of old config.
    * 
    * @param {UpdateConfigBody} values - The config updates 
    * @returns {Promise<VariableConfig>} The updated relayer variable configuration
    */
-    updateConfig(values: UpdateConfigBody): Observable<Config> {
+    updateConfig(values: UpdateConfigBody): Observable<SafeConfig> {
     return this.watcher$.pipe(
       take(1), // very important to avoid infinite loops 
       map((config) => {
@@ -122,42 +159,40 @@ export class RelayerConfig {
    * @param {DeleteConfigBody} values - The chain_id and asset_addresses to delete 
    * @returns {Promise<VariableConfig>} The updated relayer variable configuration
    */
-  deleteConfig(values: DeleteConfigBody): Observable<Config> {
+  deleteConfig(values: DeleteConfigBody): Observable<SafeConfig> {
     return this.watcher$.pipe(
       take(1), // very important to avoid infinite loops 
       map((config) => {
         const oldConfig = config;
-        const result = { ...oldConfig };
+        const rawConfig = this.configToRawConfig(config);
+        const result = { ...rawConfig };
         
-        // Find the chain to delete from
         const chainIndex = result.chains.findIndex(chain => chain.chain_id === values.chain_id);
         
         if (chainIndex === -1) {
           throw new ConfigError(`Chain with ID ${values.chain_id} not found in configuration`);
         }
 
-        // normalize asset_addresses to array
         const assetAddressesToDelete = Array.isArray(values.asset_addresses) 
           ? values.asset_addresses 
           : [values.asset_addresses];
 
         const existingChain = result.chains[chainIndex];
         
-        // Filter out the assets to be deleted from this specific chain
         const updatedAssets = (existingChain!.supported_assets || []).filter(
           asset => !assetAddressesToDelete.includes(asset.asset_address)
         );
 
-        // Update the chain with filtered assets
         const updatedChain = {
           ...existingChain,
           supported_assets: updatedAssets
         };
         
-        // Update the specific chain in the chains array
-        result.chains[chainIndex] = updatedChain as ChainConfig;
+        const validatedChain = zRawChainConfig.parse(updatedChain);
+        result.chains[chainIndex] = validatedChain;
 
-        return {oldConfig, newConfig: result};
+        const resolvedNewConfig = zConfig.parse(result);
+        return {oldConfig, newConfig: resolvedNewConfig};
       }),
       switchMap(async ({oldConfig, newConfig}) => {
         if (!this.isConfigEqual(oldConfig, newConfig)) {
@@ -182,7 +217,8 @@ export class RelayerConfig {
    */
   private async writeConfig(config: Config): Promise<void> {
     console.log('writeConfig called for path:', this.configPathString);
-    await writeFile(this.configPathString, this.checkConfigVariables(config));
+    const rawConfig = this.configToRawConfig(config);
+    await writeFile(this.configPathString, this.checkConfigVariables(rawConfig as Config));
     console.log('writeConfig completed for path:', this.configPathString);
   }
 
@@ -195,7 +231,7 @@ export class RelayerConfig {
    */
   private async writeConfigBackup(config: Config, backupFileName: string): Promise<void> {
     if (!this.configBackupPath) {
-      return; // No backup path configured, skip backup
+      return; // no backup path configured, skip backup
     }
     
     const timestamp = Number(new Date());
@@ -208,11 +244,11 @@ export class RelayerConfig {
   private checkConfigVariables(config: Config): string {
     const configToWrite = { ...config } as any;
 
-    // Check which sensitive fields should be excluded due to env vars
+    // check which sensitive fields should be excluded due to env vars
     const envFeeReceiverAddress = process.env["FEE_RECIEVER_ADDRESS"];
     const envSignerPrivateKey = process.env["SIGNER_PRIVATE_KEY"];
 
-    // Remove sensitive fields from config if env vars are set
+    // remove sensitive fields from config if env vars are set
     if (envFeeReceiverAddress) {
       delete (configToWrite).fee_receiver_address;
     }
@@ -232,21 +268,20 @@ export class RelayerConfig {
    * Remove sensitive values from config defaults object and all chain configurations
    *
    * @param {Config} config - The config value 
-   * @returns {Config} The relayer configuration with secrets removed
+   * @returns {SafeConfig} The relayer configuration with secrets removed
    */
-  private safeishConfig(config: Config): Config {
+  private safeishConfig(config: Config): SafeConfig {
+    const rawConfig = this.configToRawConfig(config);
     const {
       defaults,
       chains,
       ...safeConfig
-    } = config;
+    } = rawConfig;
     
-    // Remove sensitive fields from defaults
     const safeDefaults = defaults ? {
       entrypoint_address: defaults.entrypoint_address
     } : undefined;
     
-    // Remove sensitive fields from each chain
     const safeChains = chains.map(chain => {
       const {
         fee_receiver_address,
@@ -263,6 +298,42 @@ export class RelayerConfig {
     };
   }
 
+  private configToRawConfig(config: Config): RawConfig {
+    if (!this.rawConfigCache) {
+      console.warn("No raw config cache available, cannot strip auto-filled values");
+      return config as any;
+    }
+
+    const rawConfig = this.rawConfigCache;
+    
+    const rawChains = config.chains.map((resolvedChain, index) => {
+      const originalChain = rawConfig.chains.find(c => c.chain_id === resolvedChain.chain_id);
+      
+      if (!originalChain) {
+        return resolvedChain;
+      }
+      
+      const strippedChain: any = { ...resolvedChain };
+      
+      if (!originalChain.fee_receiver_address && rawConfig.defaults?.fee_receiver_address) {
+        delete strippedChain.fee_receiver_address;
+      }
+      if (!originalChain.signer_private_key && rawConfig.defaults?.signer_private_key) {
+        delete strippedChain.signer_private_key;
+      }
+      if (!originalChain.entrypoint_address && rawConfig.defaults?.entrypoint_address) {
+        delete strippedChain.entrypoint_address;
+      }
+      
+      return strippedChain;
+    });
+
+    return {
+      ...config,
+      chains: rawChains
+    } as RawConfig;
+  }
+
   private createConfigWatcher(): Observable<Config> {
     return watchObsFn(this.configPathString)
       .pipe(share())
@@ -274,7 +345,12 @@ export class RelayerConfig {
           console.error('read config error', error);
           throw error
         }),
-        switchMap((rawConfig) => this.parseConfig(rawConfig)),
+        switchMap((rawConfigData) => {
+          const rawConfig = zRawConfig.parse(rawConfigData);
+          this.rawConfigCache = rawConfig;
+          
+          return this.parseConfig(rawConfigData);
+        }),
         catchError((error) => {
           console.error('parse config error', error);
           throw error
@@ -311,7 +387,6 @@ export class RelayerConfig {
   }
 
   private mergeConfig(existing: Config, updates: UpdateConfigBody): Config {
-    // Require chain_id since all UpdateConfigBody properties are chain-specific
     if (!updates.chain_id) {
       throw new ConfigError("chain_id is required for config updates");
     }
@@ -351,8 +426,8 @@ export class RelayerConfig {
       }
     }
 
-    // Update the specific chain in the chains array
-    result.chains[chainIndex] = updatedChain as ChainConfig;
+    const validatedChain = zChainConfig.parse(updatedChain);
+    result.chains[chainIndex] = validatedChain;
 
     return result;
   }
@@ -363,18 +438,13 @@ export class RelayerConfig {
    * @returns {Config} The relayer configuration
    */
   private async parseConfig(configFile: Record<string, unknown>): Promise<Config> {
-
-    const {
-      cors_allow_all, allowed_domains, sqlite_db_path, 
-      defaults,
-      chains,
-    }: Config = zConfig.parse(configFile);
+    const rawConfig = zRawConfig.parse(configFile);
 
     const {
         fee_receiver_address: configFeeRecieverAddress,
         signer_private_key: configSignerPrivateKey,
         entrypoint_address
-      } = defaults!;
+      } = rawConfig.defaults || {};
 
     const envFeeRecieverAddress = process.env["FEE_RECIEVER_ADDRESS"];
     const envSignerPrivateKey = process.env["SIGNER_PRIVATE_KEY"];
@@ -398,19 +468,16 @@ export class RelayerConfig {
       ? (console.warn("Using ENV signer_private_key"), envSignerPrivateKey as PrivateKey)
       : (console.warn("Using config.json signer_private_key"), configSignerPrivateKey!);
 
-    const parsedConfig: Config = {
+    const rawConfigWithEnvVars: RawConfig = {
+      ...rawConfig,
       defaults: {
         fee_receiver_address,
         entrypoint_address,
         signer_private_key
-      },
-      chains,
-      cors_allow_all,
-      allowed_domains,
-      sqlite_db_path
+      }
     };
 
-    return parsedConfig;
+    return zConfig.parse(rawConfigWithEnvVars);
   }
 
   /**

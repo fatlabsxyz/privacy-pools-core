@@ -1,9 +1,12 @@
-import { app } from "./app.js";
+import { createApp } from "./app.js";
 import { db } from "./providers/db.provider.js";
 
 const port = 3000;
 
 async function main() {
+
+  const app = await createApp();
+
   await db.init();
   // Start the server
   app.listen(port, () => {

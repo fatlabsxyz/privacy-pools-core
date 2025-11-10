@@ -17,9 +17,9 @@ import {
   WithdrawPublicSignals,
 } from "./interfaces/relayer/request.js";
 import { FeeDataAbi } from "./types/abi.types.js";
-import { getFeeReceiverAddress, getSignerPrivateKey } from "./config/index.js";
 import { privateKeyToAccount } from "viem/accounts";
 import { ChainId } from "./types.js";
+import { relayerConfig } from "./config/index.js";
 
 
 export const JSONStringifyBigInt = (json_string: object) => {
@@ -119,9 +119,11 @@ export function isViemError(error: unknown): error is ViemError {
   return viemErrorNames.includes(error?.constructor?.name || "");
 }
 
-export function isFeeReceiverSameAsSigner(chainId: ChainId) {
-  const feeReceiverAddress = getFeeReceiverAddress(chainId);
-  const signerAddress = privateKeyToAccount(getSignerPrivateKey(chainId) as `0x${string}`).address;
+export async function isFeeReceiverSameAsSigner(chainId: ChainId) {
+  const feeReceiverAddress = await relayerConfig.getFeeReceiverAddress(chainId);
+  const pkey = await relayerConfig.getSignerPrivateKey(chainId);
+
+  const signerAddress = privateKeyToAccount(pkey).address;
   return feeReceiverAddress.toLowerCase() === signerAddress.toLowerCase();
 }
 

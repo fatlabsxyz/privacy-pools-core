@@ -1,13 +1,6 @@
-import fs from "node:fs";
-import path from "node:path";
-import { ConfigError, RelayerError } from "../exceptions/base.exception.js";
-import { zConfig } from "./schemas.js";
-import { AssetConfig, ChainConfig } from "./types.js";
-import { Address, getAddress } from "viem";
-import { ChainId, PrivateKey } from "../types.js";
-
-
+import { getAddress } from "viem";
 import { RelayerConfig } from "./config.js";
+
 export { RelayerConfig } from "./config.js";
 
 // export config class (to be used everywhere)

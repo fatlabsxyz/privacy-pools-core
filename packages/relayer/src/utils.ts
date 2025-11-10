@@ -119,14 +119,6 @@ export function isViemError(error: unknown): error is ViemError {
   return viemErrorNames.includes(error?.constructor?.name || "");
 }
 
-export async function isFeeReceiverSameAsSigner(chainId: ChainId) {
-  const feeReceiverAddress = await relayerConfig.getFeeReceiverAddress(chainId);
-  const pkey = await relayerConfig.getSignerPrivateKey(chainId);
-
-  const signerAddress = privateKeyToAccount(pkey).address;
-  return feeReceiverAddress.toLowerCase() === signerAddress.toLowerCase();
-}
-
 export function isNative(asset: `0x${string}`) {
   return asset.toLowerCase() === "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 }

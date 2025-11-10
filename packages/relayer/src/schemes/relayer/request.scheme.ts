@@ -1,11 +1,10 @@
 import { z } from "zod";
-import { zChainId, zFeeCommitment, zAddress } from "../shared.schemes.js";
+import { zChainId, zFeeCommitment, zAddress, zHex, zNonNegativeBigInt } from "../shared.schemes.js";
 
 const zWithdrawal = z.object({
   processooor: zAddress,
-  data: z.string(),
+  data: zHex,
 });
-
 
 const zPublicSignals = z.array(z.string()).length(8);
 
@@ -21,7 +20,7 @@ const zRelayRequest = z.object({
   withdrawal: zWithdrawal,
   publicSignals: zPublicSignals,
   proof: zProof,
-  scope: z.string(),
+  scope: zNonNegativeBigInt,
   chainId: zChainId,
   feeCommitment: zFeeCommitment.optional(),
 });

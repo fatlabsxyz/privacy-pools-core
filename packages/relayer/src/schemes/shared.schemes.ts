@@ -1,4 +1,4 @@
-import { getAddress } from "viem";
+import { getAddress, Hex } from "viem";
 import { z } from "zod";
 import { ChainId, PrivateKey } from "../types.js";
 
@@ -26,8 +26,17 @@ export const zPrivateKey = z
   .length(66)
   .transform((v) => v as PrivateKey);
 
+// Hex validation schema
+export const zHex = z
+  .string()
+  .regex(/^0x[0-9a-fA-F]+$/)
+  .transform((v) => v as Hex);
+
 export const zFeeCommitment = z.object({
+  withdrawalData: zHex,
+  asset: zAddress,
   expiration: z.number(),
-  withdrawalData: z.string(),
-  signedRelayerCommitment: z.string(),
+  amount: zNonNegativeBigInt,
+  extraGas: z.boolean(),
+  signedRelayerCommitment: zHex,
 });

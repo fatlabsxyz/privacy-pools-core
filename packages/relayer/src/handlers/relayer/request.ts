@@ -1,5 +1,5 @@
 import { NextFunction, Response } from "express";
-import { CONFIG, getChainConfig, isExceptionToken } from "../../config/index.js";
+import { isExceptionToken, relayerConfig } from "../../config/index.js";
 import { ConfigError, ValidationError, RelayerError } from "../../exceptions/base.exception.js";
 import {
   RelayerResponse,
@@ -34,16 +34,6 @@ function relayRequestBodyToWithdrawalPayload(
 }
 
 /**
- * Checks if a chain ID is supported.
- * 
- * @param {number} chainId - The chain ID to check.
- * @returns {boolean} - Whether the chain is supported.
- */
-function isChainSupported(chainId: ChainId): boolean {
-  return CONFIG.chains.some(chain => chain.chain_id === chainId);
-}
-
-/**
  * Parses and validates the withdrawal request body.
  *
  * @param {Request["body"]} body - The request body to parse.
@@ -51,13 +41,15 @@ function isChainSupported(chainId: ChainId): boolean {
  * @throws {ValidationError} - If the input data is invalid.
  * @throws {ConfigError} - If the chain is not supported.
  */
-function parseWithdrawal(body: RelayRequest["body"]): { payload: WithdrawalPayload, chainId: ChainId } {
+async function parseWithdrawal(body: RelayRequest["body"]): Promise<{ payload: WithdrawalPayload, chainId: ChainId }> {
 
   const payload = relayRequestBodyToWithdrawalPayload(body);
   const chainId = body.chainId;
 
+  const isChainSupportedThough = await relayerConfig.isChainSupported(chainId)
+
   // Check if the chain is supported early
-  if (!isChainSupported(chainId)) {
+  if (!isChainSupportedThough) {
     throw ValidationError.invalidInput({ message: `Chain with ID ${chainId} not supported.` });
   }
   return { payload, chainId };
@@ -76,18 +68,19 @@ export async function relayRequestHandler(
   next: NextFunction,
 ) {
   try {
-    const { payload: withdrawalPayload, chainId } = parseWithdrawal(req.body);
+    const { payload: withdrawalPayload, chainId } = await parseWithdrawal(req.body);
 
-    const maxGasPrice = getChainConfig(chainId)?.max_gas_price;
+    const config = await relayerConfig.getChainConfig(chainId);
+    const maxGasPrice = config.max_gas_price;
     const currentGasPrice = await web3Provider.getGasPrice(chainId);
 
     // XXX: Block extraGas for EXCEPTION_TOKENS
     if (withdrawalPayload.feeCommitment?.extraGas && isExceptionToken(withdrawalPayload.feeCommitment?.asset)) {
-      throw RelayerError.assetNotSupported(`Extra gas feature not supported for ${withdrawalPayload.feeCommitment?.asset}`);
+      return next(RelayerError.assetNotSupported(`Extra gas feature not supported for ${withdrawalPayload.feeCommitment?.asset}`));
     }
 
     if (maxGasPrice !== undefined && currentGasPrice > maxGasPrice) {
-      throw ConfigError.maxGasPrice(`Current gas price ${currentGasPrice} is higher than max price ${maxGasPrice}`);
+      return next(ConfigError.maxGasPrice(`Current gas price ${currentGasPrice} is higher than max price ${maxGasPrice}`));
     }
 
     const requestResponse: RelayerResponse =
@@ -96,6 +89,7 @@ export async function relayRequestHandler(
     res
       .status(200)
       .json(res.locals.marshalResponse(new RequestMashall(requestResponse)));
+
     next();
   } catch (error) {
     next(error);

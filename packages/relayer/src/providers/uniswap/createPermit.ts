@@ -26,7 +26,7 @@ export async function createPermit2<Signer extends CustomSource>({
   const permitContract = getContract({
     abi: Permit2ABI,
     address: permit2Address,
-    client: web3Provider.client(chainId)
+    client: await web3Provider.client(chainId)
   });
 
   const allowance = await permitContract.read.allowance([

@@ -14,12 +14,13 @@ import {
 } from "@0xbow/privacy-pools-core-sdk";
 import { Address } from "viem";
 import {
-  CONFIG
+  relayerConfig
 } from "../config/index.js";
 import { WithdrawalPayload } from "../interfaces/relayer/request.js";
 import { RelayerError, SdkError, ConfigError } from "../exceptions/base.exception.js";
 import { SdkProviderInterface } from "../types/sdk.types.js";
 import { createChainObject } from "../utils.js";
+import { ChainId } from "../types.js";
 
 /**
  * Class representing the SDK provider for interacting with Privacy Pool SDK.
@@ -28,43 +29,11 @@ export class SdkProvider implements SdkProviderInterface {
   /** Instance of the PrivacyPoolSDK. */
   private sdk: PrivacyPoolSDK;
   
-  /** Map of chain ID to contract interactions service */
-  private contractsByChain: Map<number, ContractInteractionsService>;
-
   /**
    * Initializes a new instance of the SDK provider.
    */
   constructor() {
     this.sdk = new PrivacyPoolSDK(new Circuits({ browser: false }));
-    this.contractsByChain = new Map();
-    
-    // Initialize contract instances for all supported chains
-    CONFIG.chains.forEach(chainConfig => {
-      try {
-        // Create chain object
-        const chain = createChainObject(chainConfig);
-        
-        // Get entrypoint address and signer private key
-        const entrypointAddress = chainConfig.entrypoint_address || CONFIG.defaults.entrypoint_address;
-        const signerPrivateKey = chainConfig.signer_private_key || CONFIG.defaults.signer_private_key;
-        
-        // Create contract instance
-        const contracts = this.sdk.createContractInstance(
-          chainConfig.rpc_url,
-          chain,
-          entrypointAddress,
-          signerPrivateKey,
-        );
-        
-        this.contractsByChain.set(chainConfig.chain_id, contracts);
-      } catch (error) {
-        console.error(`Error initializing chain ${chainConfig.chain_id}: ${error}`);
-      }
-    });
-    
-    if (this.contractsByChain.size === 0) {
-      throw new Error("No chains were successfully initialized");
-    }
   }
 
   /**
@@ -74,8 +43,20 @@ export class SdkProvider implements SdkProviderInterface {
    * @returns {ContractInteractionsService} - The contract interactions service for the specified chain.
    * @throws {RelayerError} - If the chain is not supported.
    */
-  private getContractsForChain(chainId: number): ContractInteractionsService {
-    const contracts = this.contractsByChain.get(chainId);
+  private async getContractsForChain(chainId: ChainId): Promise<ContractInteractionsService> {
+    const chainConfig = await relayerConfig.getChainConfig(chainId);
+    const chain = createChainObject(chainConfig);
+    const entrypointAddress = await relayerConfig.getEntrypointAddress(chainId);
+    const signerPrivateKey = await relayerConfig.getEntrypointAddress(chainId);
+
+    // Create contract instance
+    const contracts = this.sdk.createContractInstance(
+      chainConfig.rpc_url,
+      chain,
+      entrypointAddress,
+      signerPrivateKey,
+    );
+
     if (!contracts) {
       throw ConfigError.default(`Chain with ID ${chainId} not supported.`);
     }
@@ -101,9 +82,9 @@ export class SdkProvider implements SdkProviderInterface {
    */
   async broadcastWithdrawal(
     withdrawalPayload: WithdrawalPayload,
-    chainId: number,
+    chainId: ChainId,
   ): Promise<{ hash: string }> {
-    const contracts = this.getContractsForChain(chainId);
+    const contracts = await this.getContractsForChain(chainId);
     return contracts.relay(
       withdrawalPayload.withdrawal,
       withdrawalPayload.proof,
@@ -126,15 +107,15 @@ export class SdkProvider implements SdkProviderInterface {
    * Converts a scope value to an asset address.
    *
    * @param {bigint} scope - The scope value.
-   * @param {number} chainId - The chain ID.
+   * @param {ChainId} chainId - The chain ID.
    * @returns {Promise<{ poolAddress: Address; assetAddress: Address; }>} - A promise resolving to the asset address.
    */
   async scopeData(
     scope: bigint,
-    chainId: number,
+    chainId: ChainId,
   ): Promise<{ poolAddress: Address; assetAddress: Address }> {
     try {
-      const contracts = this.getContractsForChain(chainId);
+      const contracts = await this.getContractsForChain(chainId);
       const data = await contracts.getScopeData(scope);
       return data;
     } catch (error) {

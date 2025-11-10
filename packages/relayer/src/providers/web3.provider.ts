@@ -1,15 +1,14 @@
 import { Chain, createPublicClient, createWalletClient, Hex, http, PublicClient, verifyTypedData, WalletClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
-  CONFIG,
-  getSignerPrivateKey
+  relayerConfig
 } from "../config/index.js";
 import { FeeCommitment } from "../interfaces/relayer/common.js";
 import { createChainObject } from "../utils.js";
 import { ChainId } from "../types.js";
 
 interface IWeb3Provider {
-  client(chainId: ChainId): PublicClient;
+  client(chainId: ChainId): Promise<PublicClient>;
   getGasPrice(chainId: ChainId): Promise<bigint>;
 }
 
@@ -33,57 +32,49 @@ const RelayerCommitmentTypes = {
  * Class representing the provider for interacting with several chains
  */
 export class Web3Provider implements IWeb3Provider {
-  chains: { [key: ChainId]: Chain; };
-  clients: { [key: number]: PublicClient; };
-  signers: { [key: number]: WalletClient; };
+  constructor() {}
 
-  constructor() {
-    this.chains = Object.fromEntries(CONFIG.chains.map(chainConfig => {
-      return [chainConfig.chain_id, createChainObject(chainConfig)];
-    }));
-    this.clients = Object.fromEntries(Object.entries(this.chains).map(([chainId, chain]) => {
-      return [
-        chainId,
-        createPublicClient({
-          chain,
-          transport: http(chain.rpcUrls.default.http[0])
-        })];
-    }));
-    this.signers = Object.fromEntries(Object.entries(this.chains).map(([chainId, chain]) => {
-      const account = privateKeyToAccount(getSignerPrivateKey(Number(chainId) as ChainId)); // TODO not sure why this has to be casted it should be number
-      return [
-        chainId,
-        createWalletClient({
-          account,
-          chain,
-          transport: http(chain.rpcUrls.default.http[0])
-        })];
-    }));
-
-  }
-
-  client(chainId: ChainId): PublicClient {
-    const client = this.clients[chainId];
+  /*
+   * Create a Client object for a specific chainId
+   *
+   **/
+  async client(chainId: ChainId): Promise<PublicClient> {
+    const chainConfig = await relayerConfig.getChainConfig(chainId);
+    const chain = createChainObject(chainConfig);  
+    const client = createPublicClient({ 
+      chain, 
+      transport: http(chain.rpcUrls.default.http[0])
+    });
     if (client === undefined) {
       throw Error(`Web3ProviderError::UnsupportedChainId(${chainId})`);
     }
     else return client;
   }
 
-  signer(chainId: number): WalletClient {
-    const signer = this.signers[chainId];
+  async signer(chainId: ChainId): Promise<WalletClient> {
+    const chainConfig = await relayerConfig.getChainConfig(chainId);
+    const chain = createChainObject(chainConfig);  
+    const pkey = await relayerConfig.getSignerPrivateKey(chainId);
+    const account = privateKeyToAccount(pkey);
+    const signer = createWalletClient({
+      account,
+      chain,
+      transport: http(chain.rpcUrls.default.http[0])
+    });
     if (signer === undefined) {
       throw Error(`Web3ProviderError::UnsupportedChainId(${chainId})`);
-    }
+    } 
     else return signer;
   }
 
   async getGasPrice(chainId: ChainId): Promise<bigint> {
-    return await this.client(chainId).getGasPrice();
+    const client = await this.client(chainId);
+    return client.getGasPrice();
   }
 
   async signRelayerCommitment(chainId: ChainId, commitment: Omit<FeeCommitment, 'signedRelayerCommitment'>) {
-    const signer = privateKeyToAccount(getSignerPrivateKey(chainId) as Hex);
+    const pkey = await relayerConfig.getSignerPrivateKey(chainId);
+    const signer = privateKeyToAccount(pkey);
     const { withdrawalData, expiration, extraGas, amount, asset } = commitment;
     return signer.signTypedData({
       domain: domain(chainId),
@@ -100,7 +91,8 @@ export class Web3Provider implements IWeb3Provider {
   }
 
   async verifyRelayerCommitment(chainId: ChainId, commitment: FeeCommitment): Promise<boolean> {
-    const signer = privateKeyToAccount(getSignerPrivateKey(chainId) as Hex);
+    const pkey = await relayerConfig.getSignerPrivateKey(chainId);
+    const signer = privateKeyToAccount(pkey);
     const { withdrawalData, asset, expiration, amount, extraGas, signedRelayerCommitment } = commitment;
     return verifyTypedData({
       address: signer.address,

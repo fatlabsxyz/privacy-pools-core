@@ -9,6 +9,7 @@ import { JSONStringifyBigInt } from "../utils.js";
 import { UpdateConfigBody, DeleteConfigBody, zConfig, zRawConfig, zRawChainConfig, zChainConfig } from "./schemas.js";
 import { AssetConfig, ChainConfig, Config, RawConfig, SafeConfig } from "./types.js";
 import { Address, getAddress } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 
 
 export const watchObsFn = (path: PathLike) => 
@@ -46,15 +47,29 @@ export class RelayerConfig {
   }
 
   /**
-   * Gets the latest configuration
+   * Gets the latest chain configuration for a specific chain
    * 
-   * @returns {ReadOnly<Config>} The parsed configuration object
+   * @param {ChainId} chainId - The chain ID
+   * @returns {ReadOnly<ChainConfig>} The parsed chain configuration object
    * @throws {ConfigError} If the configuration is not initialized
    */
   async getChainConfig(chainId: ChainId): Promise<Readonly<ChainConfig>> {
     const config = await this.getConfig();
     return this.getChainConfigFromConfigObject(config, chainId);
   }
+
+  /**
+   * Gets the latest chain configuration list
+   * 
+   * @returns {ReadOnly<ChainConfig[]>} The parsed chain configuration list object
+   * @throws {ConfigError} If the configuration is not initialized
+   */
+  async getChainConfigList(): Promise<Readonly<ChainConfig[]>> {
+    const config = await this.getConfig();
+    return config.chains;
+  }
+
+
 
   /**
    * Gets the asset configuration for a specific asset address on a specific chain.
@@ -86,6 +101,17 @@ export class RelayerConfig {
     }
 
     return [assetConfig, undefined];
+  }
+
+  /**
+   * Checks if a chain ID is supported.
+   * 
+   * @param {number} chainId - The chain ID to check.
+   * @returns {boolean} - Whether the chain is supported.
+   */
+  async isChainSupported(chainId: ChainId): Promise<boolean> {
+    const config = await this.getConfig();
+    return config.chains.some(chain => chain.chain_id === chainId);
   }
 
   /**
@@ -122,6 +148,15 @@ export class RelayerConfig {
     const config = await this.getConfig();
     const chainConfig = this.getChainConfigFromConfigObject(config, chainId);
     return chainConfig.entrypoint_address;
+  }
+
+
+  async isFeeReceiverSameAsSigner(chainId: ChainId): Promise<boolean> {
+    const feeReceiverAddress = await this.getFeeReceiverAddress(chainId);
+    const pkey = await this.getSignerPrivateKey(chainId);
+
+    const signerAddress = privateKeyToAccount(pkey).address;
+    return feeReceiverAddress.toLowerCase() === signerAddress.toLowerCase();
   }
 
   /**

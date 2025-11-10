@@ -1,11 +1,11 @@
-import { NextFunction, Request, Response } from "express";
-import { getAddress } from "viem";
-import { getAssetConfig, getFeeReceiverAddress, getSignerPrivateKey, isExceptionToken } from "../../config/index.js";
+import { NextFunction, Response } from "express";
+import { Address, getAddress } from "viem";
+import { isExceptionToken, relayerConfig } from "../../config/index.js";
 import { QuoterError } from "../../exceptions/base.exception.js";
 import { web3Provider } from "../../providers/index.js";
 import { quoteService } from "../../services/index.js";
 import { QuoteMarshall } from "../../types.js";
-import { encodeWithdrawalData, isFeeReceiverSameAsSigner, isNative } from "../../utils.js";
+import { encodeWithdrawalData, isNative } from "../../utils.js";
 import { privateKeyToAccount } from "viem/accounts";
 import { QuoteFee } from "../../services/quote.service.js";
 import { QuoteRequest } from "../../middlewares/index.js";
@@ -26,8 +26,8 @@ export async function relayQuoteHandler(
   const asset = req.body.asset;
   let extraGas = Boolean(req.body.extraGas);
 
-  const config = getAssetConfig(chainId, asset);
-  if (config === undefined)
+  const [assetConfig, error]= await relayerConfig.getAssetConfig(chainId, asset);
+  if (error)
     return next(QuoterError.assetNotSupported(`Asset ${asset} for chain ${chainId} is not supported`));
 
   if (isNative(asset)) {
@@ -42,7 +42,7 @@ export async function relayQuoteHandler(
   let quote: QuoteFee;
   try {
     quote = await quoteService.quoteFeeBPSNative({
-      chainId, amountIn, assetAddress: asset, baseFeeBPS: config.fee_bps, extraGas: extraGas
+      chainId, amountIn, assetAddress: asset, baseFeeBPS: assetConfig!.fee_bps, extraGas: extraGas
     });
   } catch (e) {
     return next(e);
@@ -57,18 +57,19 @@ export async function relayQuoteHandler(
   };
 
   const quoteResponse = new QuoteMarshall({
-    baseFeeBPS: config.fee_bps,
+    baseFeeBPS: assetConfig!.fee_bps,
     feeBPS,
     gasPrice,
     detail,
   });
 
   if (recipient) {
-    let feeReceiverAddress: `0x${string}`;
-    const finalFeeReceiverAddress = getAddress(getFeeReceiverAddress(chainId));
+    let feeReceiverAddress: Address;
+    const finalFeeReceiverAddress = await relayerConfig.getFeeReceiverAddress(chainId);
     if (extraGas) {
-      const signer = privateKeyToAccount(getSignerPrivateKey(chainId) as `0x${string}`);
-      if (isFeeReceiverSameAsSigner(chainId)) {
+      const pkey = await relayerConfig.getSignerPrivateKey(chainId);
+      const signer = privateKeyToAccount(pkey);
+      if (await relayerConfig.isFeeReceiverSameAsSigner(chainId)) {
         feeReceiverAddress = finalFeeReceiverAddress;
       } else {
         feeReceiverAddress = signer.address;

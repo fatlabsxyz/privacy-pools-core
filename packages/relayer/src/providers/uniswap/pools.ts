@@ -24,7 +24,7 @@ export async function getPool(chainId: ChainId, tokenA: Token, tokenB: Token, fe
   const poolContract = getContract({
     abi: v3PoolABI,
     address: getAddress(poolAddress),
-    client: web3Provider.client(chainId),
+    client: await web3Provider.client(chainId),
   });
 
   const [liquidity, slot0] = await Promise.all([

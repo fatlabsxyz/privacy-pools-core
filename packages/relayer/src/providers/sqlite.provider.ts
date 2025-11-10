@@ -2,7 +2,7 @@ import sqlite3 from "sqlite3";
 import { open, Database } from "sqlite";
 
 import path from "path";
-import { CONFIG } from "../config/index.js";
+import { relayerConfig } from "../config/index.js";
 import { RelayerDatabase } from "../types/db.types.js";
 import {
   RequestStatus,
@@ -14,7 +14,7 @@ import {
  */
 export class SqliteDatabase implements RelayerDatabase {
   /** Path to the SQLite database file. */
-  readonly dbPath: string;
+  private dbPath: string | undefined = undefined;
 
   /** Indicates whether the database has been initialized. */
   private _initialized: boolean = false;
@@ -38,7 +38,6 @@ CREATE TABLE IF NOT EXISTS requests (
    * Initializes the database with the given path.
    */
   constructor() {
-    this.dbPath = path.resolve(CONFIG.sqlite_db_path);
   }
 
   /**
@@ -56,6 +55,10 @@ CREATE TABLE IF NOT EXISTS requests (
    * @returns {Promise<void>} - A promise that resolves when initialization is complete.
    */
   async init(): Promise<void> {
+    if (!this.dbPath) {
+      const config = await relayerConfig.getConfig();
+      this.dbPath = path.resolve(config.sqlite_db_path);
+    }
     try {
       this.db = await open({
         driver: sqlite3.Database,

@@ -13,7 +13,7 @@ import {
 // Router setup
 const relayerRouter = Router();
 
-relayerRouter.get("/details", 
+relayerRouter.get("/details",
   validateDetailsMiddleware,
   relayerDetailsHandler
 );

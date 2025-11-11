@@ -6,8 +6,9 @@ import {
   marshalResponseMiddleware,
   notFoundMiddleware,
 } from "./middlewares/index.js";
-import { relayerRouter } from "./routes/index.js";
+import { adminRouter, relayerRouter } from "./routes/index.js";
 import { relayerConfig } from "./config/index.js";
+import { adminMiddleware } from "./middlewares/admin/admin.middleware.js";
 
 // CORS config - allow all origins by default for development and testnet
 function corsOptions(allowedDomains: string[], corsAllowAll: boolean) {
@@ -57,7 +58,10 @@ export async function createApp(): Promise<Express> {
   });
 
   // relayer route
-  app.use("/relayer", relayerRouter);
+  app.use("/relayer", relayerRouter());
+
+  // admin route
+  app.use("/admin", adminMiddleware, adminRouter());
 
   // Error and 404 handling
   app.use([errorHandlerMiddleware, notFoundMiddleware]);

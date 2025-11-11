@@ -384,7 +384,7 @@ export class RelayerConfig {
           const rawConfig = zRawConfig.parse(rawConfigData);
           this.rawConfigCache = rawConfig;
           
-          return this.parseConfig(rawConfigData);
+          return this.parseConfig(rawConfig);
         }),
         catchError((error) => {
           console.error('parse config error', error);
@@ -472,8 +472,7 @@ export class RelayerConfig {
    * 
    * @returns {Config} The relayer configuration
    */
-  private async parseConfig(configFile: Record<string, unknown>): Promise<Config> {
-    const rawConfig = zRawConfig.parse(configFile);
+  private async parseConfig(rawConfig: RawConfig): Promise<Config> {
 
     const {
         fee_receiver_address: configFeeRecieverAddress,
@@ -512,7 +511,34 @@ export class RelayerConfig {
       }
     };
 
-    return zConfig.parse(rawConfigWithEnvVars);
+    // Apply the same transform logic as zConfig without re-parsing
+    const resolvedChains = rawConfigWithEnvVars.chains.map(chain => {
+      const chainFeeReceiver = chain.fee_receiver_address ?? fee_receiver_address;
+      const chainSignerKey = chain.signer_private_key ?? signer_private_key;
+      const chainEntrypoint = chain.entrypoint_address ?? entrypoint_address;
+      
+      if (!chainFeeReceiver) {
+        throw new Error(`Chain ${chain.chain_id} missing fee_receiver_address (not in chain or defaults)`);
+      }
+      if (!chainSignerKey) {
+        throw new Error(`Chain ${chain.chain_id} missing signer_private_key (not in chain or defaults)`);
+      }
+      if (!chainEntrypoint) {
+        throw new Error(`Chain ${chain.chain_id} missing entrypoint_address (not in chain or defaults)`);
+      }
+      
+      return {
+        ...chain,
+        fee_receiver_address: chainFeeReceiver,
+        signer_private_key: chainSignerKey,
+        entrypoint_address: chainEntrypoint
+      };
+    });
+    
+    return {
+      ...rawConfigWithEnvVars,
+      chains: resolvedChains
+    } as Config;
   }
 
   /**

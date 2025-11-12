@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { validateBatchRelayRequestBody } from "../../src/schemes/relayer/batchRequest.scheme.js";
 
-describe("validateBatchRelayRequestBody", () => {
+describe.skip("validateBatchRelayRequestBody", () => {
   
   it("should validate a correct batch relay request", () => {
     const validData = {

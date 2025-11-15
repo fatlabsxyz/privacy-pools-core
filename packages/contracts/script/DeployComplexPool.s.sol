@@ -52,10 +52,20 @@ contract DeployComplexPool is Script {
     deployer = vm.envAddress('DEPLOYER_ADDRESS');
 
     // Prompt user for ERC20 details
-    _promptForERC20Details();
+    bool erc20AddressWasProvided = vm.envExists('ERC20_ADDRESS');
+    bool erc20SymbolWasProvided = vm.envExists('ERC20_SYMBOL');
+    bool allInfoWasProvided = erc20AddressWasProvided && erc20SymbolWasProvided;
+    if (allInfoWasProvided) {
+      erc20Address = vm.envAddress('ERC20_ADDRESS');
+      erc20Symbol = vm.envString('ERC20_SYMBOL');
+    } else {
+      _promptForERC20Details();
+    }
 
     // Display configuration and ask for confirmation
-    _displayConfigurationAndConfirm();
+    if (!allInfoWasProvided) {
+      _displayConfigurationAndConfirm();
+    }
   }
 
   function _promptForERC20Details() private {

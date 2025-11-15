@@ -1,8 +1,12 @@
 import {
+  ContractEventName,
+  Hex,
+  ParseEventLogsReturnType,
   type PublicClient,
   createPublicClient,
   http,
   parseAbiItem,
+  parseEventLogs,
 } from "viem";
 import {
   ChainConfig,
@@ -17,9 +21,117 @@ import { DataError } from "../errors/data.error.js";
 import { ErrorCode } from "../errors/base.error.js";
 
 // Event signatures from the contract
-const DEPOSIT_EVENT = parseAbiItem('event Deposited(address indexed _depositor, uint256 _commitment, uint256 _label, uint256 _value, uint256 _merkleRoot)');
-const WITHDRAWAL_EVENT = parseAbiItem('event Withdrawn(address indexed _processooor, uint256 _value, uint256 _spentNullifier, uint256 _newCommitment)');
-const RAGEQUIT_EVENT = parseAbiItem('event Ragequit(address indexed _ragequitter, uint256 _commitment, uint256 _label, uint256 _value)');
+const EVENTS_SIGNATURES = {
+  DEPOSIT: parseAbiItem('event Deposited(address indexed _depositor, uint256 _commitment, uint256 _label, uint256 _value, uint256 _merkleRoot)'),
+  WITHDRAWAL: parseAbiItem('event Withdrawn(address indexed _processooor, uint256 _value, uint256 _spentNullifier, uint256 _newCommitment)'),
+  RAGEQUIT: parseAbiItem('event Ragequit(address indexed _ragequitter, uint256 _commitment, uint256 _label, uint256 _value)'),
+} as const;
+
+interface EventsParsersResultsByKey {
+  [EVENTS_SIGNATURES.DEPOSIT.name]: DepositEvent;
+  [EVENTS_SIGNATURES.WITHDRAWAL.name]: WithdrawalEvent;
+  [EVENTS_SIGNATURES.RAGEQUIT.name]: RagequitEvent;
+}
+
+const EVENTS_PARSERS: {
+  [key in keyof typeof EVENTS_SIGNATURES as typeof EVENTS_SIGNATURES[key]['name']]:
+    (args: ParseEventLogsReturnType<
+      [typeof EVENTS_SIGNATURES[key]],
+      ContractEventName<[typeof EVENTS_SIGNATURES[key]]>,
+      false
+    >[number]) => EventsParsersResultsByKey[typeof EVENTS_SIGNATURES[key]['name']];
+} = {
+  Deposited: (log) => {
+    try {
+      if (!log.args) {
+        throw DataError.invalidLog("deposit", "missing args");
+      }
+
+      const {
+        _depositor: depositor,
+        _commitment: commitment,
+        _label: label,
+        _value: value,
+        _merkleRoot: precommitment,
+      } = log.args;
+
+      if (!depositor || !commitment || !label || !precommitment || !log.blockNumber || !log.transactionHash) {
+        throw DataError.invalidLog("deposit", "missing required fields");
+      }
+
+      return {
+        depositor: depositor.toLowerCase(),
+        commitment: commitment as Hash,
+        label: label as Hash,
+        value: value || BigInt(0),
+        precommitment: precommitment as Hash,
+        blockNumber: BigInt(log.blockNumber),
+        transactionHash: log.transactionHash,
+      };
+    } catch (error) {
+      if (error instanceof DataError) throw error;
+      throw DataError.invalidLog("deposit", error instanceof Error ? error.message : "Unknown error");
+    }
+  },
+  Withdrawn: (log) => {
+    try {
+      if (!log.args) {
+        throw DataError.invalidLog("withdrawal", "missing args");
+      }
+
+      const {
+        _value: value,
+        _spentNullifier: spentNullifier,
+        _newCommitment: newCommitment,
+      } = log.args;
+
+      if (!value || !spentNullifier || !newCommitment || !log.blockNumber || !log.transactionHash) {
+        throw DataError.invalidLog("withdrawal", "missing required fields");
+      }
+
+      return {
+        withdrawn: value,
+        spentNullifier: spentNullifier as Hash,
+        newCommitment: newCommitment as Hash,
+        blockNumber: BigInt(log.blockNumber),
+        transactionHash: log.transactionHash,
+      };
+    } catch (error) {
+      if (error instanceof DataError) throw error;
+      throw DataError.invalidLog("withdrawal", error instanceof Error ? error.message : "Unknown error");
+    }
+  },
+  Ragequit: (log) => {
+    try {
+      if (!log.args) {
+        throw DataError.invalidLog("ragequit", "missing args");
+      }
+
+      const {
+        _ragequitter: ragequitter,
+        _commitment: commitment,
+        _label: label,
+        _value: value,
+      } = log.args;
+
+      if (!ragequitter || !commitment || !label || !log.blockNumber || !log.transactionHash) {
+        throw DataError.invalidLog("ragequit", "missing required fields");
+      }
+
+      return {
+        ragequitter: ragequitter.toLowerCase(),
+        commitment: commitment as Hash,
+        label: label as Hash,
+        value: value || BigInt(0),
+        blockNumber: BigInt(log.blockNumber),
+        transactionHash: log.transactionHash,
+      };
+    } catch (error) {
+      if (error instanceof DataError) throw error;
+      throw DataError.invalidLog("ragequit", error instanceof Error ? error.message : "Unknown error");
+    }
+  }
+}
 
 /**
  * Service responsible for fetching and managing privacy pool events across multiple chains.
@@ -80,8 +192,8 @@ export class DataService {
 
       const logs = await client.getLogs({
         address: pool.address,
-        event: DEPOSIT_EVENT,
-        fromBlock: pool.deploymentBlock ?? config.startBlock
+        event: EVENTS_SIGNATURES.DEPOSIT,
+        fromBlock: pool.deploymentBlock ?? config.startBlock,
       }).catch(error => {
         throw new DataError(
           "Failed to fetch deposit logs",
@@ -90,38 +202,7 @@ export class DataService {
         );
       });
 
-      return logs.map((log) => {
-        try {
-          if (!log.args) {
-            throw DataError.invalidLog("deposit", "missing args");
-          }
-
-          const {
-            _depositor: depositor,
-            _commitment: commitment,
-            _label: label,
-            _value: value,
-            _merkleRoot: precommitment,
-          } = log.args;
-
-          if (!depositor || !commitment || !label || !precommitment || !log.blockNumber || !log.transactionHash) {
-            throw DataError.invalidLog("deposit", "missing required fields");
-          }
-
-          return {
-            depositor: depositor.toLowerCase(),
-            commitment: commitment as Hash,
-            label: label as Hash,
-            value: value || BigInt(0),
-            precommitment: precommitment as Hash,
-            blockNumber: BigInt(log.blockNumber),
-            transactionHash: log.transactionHash,
-          };
-        } catch (error) {
-          if (error instanceof DataError) throw error;
-          throw DataError.invalidLog("deposit", error instanceof Error ? error.message : "Unknown error");
-        }
-      });
+      return logs.map(EVENTS_PARSERS.Deposited);
     } catch (error) {
       if (error instanceof DataError) throw error;
       throw DataError.networkError(pool.chainId, error instanceof Error ? error : new Error(String(error)));
@@ -146,7 +227,7 @@ export class DataService {
 
       const logs = await client.getLogs({
         address: pool.address,
-        event: WITHDRAWAL_EVENT,
+        event: EVENTS_SIGNATURES.WITHDRAWAL,
         fromBlock: fromBlock ?? config.startBlock,
       }).catch(error => {
         throw new DataError(
@@ -156,34 +237,7 @@ export class DataService {
         );
       });
 
-      return logs.map((log) => {
-        try {
-          if (!log.args) {
-            throw DataError.invalidLog("withdrawal", "missing args");
-          }
-
-          const {
-            _value: value,
-            _spentNullifier: spentNullifier,
-            _newCommitment: newCommitment,
-          } = log.args;
-
-          if (!value || !spentNullifier || !newCommitment || !log.blockNumber || !log.transactionHash) {
-            throw DataError.invalidLog("withdrawal", "missing required fields");
-          }
-
-          return {
-            withdrawn: value,
-            spentNullifier: spentNullifier as Hash,
-            newCommitment: newCommitment as Hash,
-            blockNumber: BigInt(log.blockNumber),
-            transactionHash: log.transactionHash,
-          };
-        } catch (error) {
-          if (error instanceof DataError) throw error;
-          throw DataError.invalidLog("withdrawal", error instanceof Error ? error.message : "Unknown error");
-        }
-      });
+      return logs.map(EVENTS_PARSERS.Withdrawn);
     } catch (error) {
       if (error instanceof DataError) throw error;
       throw DataError.networkError(pool.chainId, error instanceof Error ? error : new Error(String(error)));
@@ -208,7 +262,7 @@ export class DataService {
 
       const logs = await client.getLogs({
         address: pool.address,
-        event: RAGEQUIT_EVENT,
+        event: EVENTS_SIGNATURES.RAGEQUIT,
         fromBlock: fromBlock ?? config.startBlock,
       }).catch(error => {
         throw new DataError(
@@ -218,36 +272,49 @@ export class DataService {
         );
       });
 
-      return logs.map((log) => {
-        try {
-          if (!log.args) {
-            throw DataError.invalidLog("ragequit", "missing args");
-          }
+      return logs.map(EVENTS_PARSERS.Ragequit);
+    } catch (error) {
+      if (error instanceof DataError) throw error;
+      throw DataError.networkError(pool.chainId, error instanceof Error ? error : new Error(String(error)));
+    }
+  }
 
-          const {
-            _ragequitter: ragequitter,
-            _commitment: commitment,
-            _label: label,
-            _value: value,
-          } = log.args;
+  async getTransactionEvents<Event extends (keyof typeof EVENTS_SIGNATURES)[]>(
+    pool: Pick<PoolInfo, 'chainId'>,
+    transactionHash: Hex,
+    ...events: Event
+  ): Promise<
+    ReturnType<
+      typeof EVENTS_PARSERS[
+        typeof EVENTS_SIGNATURES[
+          Event extends [] ?
+            keyof typeof EVENTS_SIGNATURES :
+            Event[number]
+        ]['name']
+      ]
+    >[]
+  > {
+    try {
+      const eventsToParse = events || ['DEPOSIT', 'RAGEQUIT', 'WITHDRAWAL'];
+      const client = this.getClientForChain(pool.chainId);
+      const receipt = await client.getTransactionReceipt({hash: transactionHash});
 
-          if (!ragequitter || !commitment || !label || !log.blockNumber || !log.transactionHash) {
-            throw DataError.invalidLog("ragequit", "missing required fields");
-          }
+      const abi = eventsToParse.map((event) => EVENTS_SIGNATURES[event]);
 
-          return {
-            ragequitter: ragequitter.toLowerCase(),
-            commitment: commitment as Hash,
-            label: label as Hash,
-            value: value || BigInt(0),
-            blockNumber: BigInt(log.blockNumber),
-            transactionHash: log.transactionHash,
-          };
-        } catch (error) {
-          if (error instanceof DataError) throw error;
-          throw DataError.invalidLog("ragequit", error instanceof Error ? error.message : "Unknown error");
-        }
-      });
+      const parsedEvents = parseEventLogs({
+        abi,
+        logs: receipt.logs,
+      })
+
+     return parsedEvents.map((event) => EVENTS_PARSERS[event.eventName](event as never)) as ReturnType<
+      typeof EVENTS_PARSERS[
+        typeof EVENTS_SIGNATURES[
+          Event extends [] ?
+            keyof typeof EVENTS_SIGNATURES :
+            Event[number]
+        ]['name']
+      ]
+    >[];
     } catch (error) {
       if (error instanceof DataError) throw error;
       throw DataError.networkError(pool.chainId, error instanceof Error ? error : new Error(String(error)));

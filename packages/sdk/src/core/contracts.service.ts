@@ -15,6 +15,7 @@ import { Withdrawal, WithdrawalProof } from "../types/withdrawal.js";
 import {
   AssetConfig,
   ContractInteractions,
+  RegisterPoolPayload,
   TransactionResponse,
 } from "../interfaces/contracts.interface.js";
 import { IEntrypointABI } from "../abi/IEntrypoint.js";
@@ -318,6 +319,33 @@ export class ContractInteractionsService implements ContractInteractions {
     }
   }
 
+  async registerPool(payload: RegisterPoolPayload) {
+    try {
+      const {
+        poolAddress,
+        assetAddress,
+        minimumDepositAmount,
+        maxRelayFeeBPS,
+        vettingFeeBPS
+      } = payload;
+
+      const { request } = await this.publicClient.simulateContract({
+        address: this.entrypointAddress,
+        abi: IEntrypointABI,
+        functionName: "registerPool",
+        args: [assetAddress, poolAddress, minimumDepositAmount, vettingFeeBPS, maxRelayFeeBPS],
+        account: this.account,
+      } as const);
+
+      return await this.executeTransaction(request);
+    } catch (error) {
+      console.error(`Register Pool Error: ${(error as Error).message}`, { error, payload });
+      throw new Error(
+        `Failed to register Pool: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
   /**
    * Retrieves data about a specific scope, including the associated privacy pool
    * and the asset used in that pool.
@@ -428,9 +456,7 @@ export class ContractInteractionsService implements ContractInteractions {
       const hash = await this.walletClient.writeContract(request);
       return {
         hash,
-        wait: async () => {
-          await this.publicClient.waitForTransactionReceipt({ hash });
-        },
+        wait: async () => this.publicClient.waitForTransactionReceipt({ hash }),
       };
     } catch (error) {
       console.error("Transaction Execution Error:", { error, request });

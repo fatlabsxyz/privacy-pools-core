@@ -1,4 +1,4 @@
-import { Address } from "viem";
+import { Address, TransactionReceipt } from "viem";
 import { Withdrawal, WithdrawalProof } from "../types/withdrawal.js";
 import { CommitmentProof, Hash } from "../types/commitment.js";
 
@@ -18,7 +18,15 @@ export interface AssetConfig {
 
 export interface TransactionResponse {
   hash: string;
-  wait: () => Promise<void>;
+  wait: () => Promise<TransactionReceipt>;
+}
+
+export interface RegisterPoolPayload {
+  poolAddress: Address;
+  assetAddress: Address;
+  minimumDepositAmount: bigint;
+  vettingFeeBPS: bigint;
+  maxRelayFeeBPS: bigint;
 }
 
 export interface ContractInteractions {
@@ -63,4 +71,6 @@ export interface ContractInteractions {
     tokenAddress: Address,
     amount: bigint,
   ): Promise<TransactionResponse>;
+
+  registerPool(payload: RegisterPoolPayload): Promise<TransactionResponse>;
 }

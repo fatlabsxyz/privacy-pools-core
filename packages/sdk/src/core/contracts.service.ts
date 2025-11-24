@@ -25,12 +25,14 @@ import { privateKeyToAccount } from "viem/accounts";
 import { CommitmentProof, Hash } from "../types/commitment.js";
 import { bigintToHex } from "../crypto.js";
 import { ContractError } from "../errors/base.error.js";
+import { contractExecutorFactory } from "../utils/contract-executor.util.js";
 
 export class ContractInteractionsService implements ContractInteractions {
   private publicClient: PublicClient;
   private walletClient: WalletClient;
   private entrypointAddress: Address;
   private account: Account;
+  private executeTransaction;
 
   /**
    * Initializes the contract interactions service.
@@ -66,6 +68,11 @@ export class ContractInteractionsService implements ContractInteractions {
     });
 
     this.entrypointAddress = entrypointAddress;
+
+    this.executeTransaction = contractExecutorFactory({
+      walletClient: this.walletClient,
+      publicClient: this.publicClient,
+    });
   }
 
   /**
@@ -449,20 +456,5 @@ export class ContractInteractionsService implements ContractInteractions {
       ],
       pubSignals: proof.publicSignals.map(bigintToHex),
     };
-  }
-
-  private async executeTransaction(request: any): Promise<TransactionResponse> {
-    try {
-      const hash = await this.walletClient.writeContract(request);
-      return {
-        hash,
-        wait: async () => this.publicClient.waitForTransactionReceipt({ hash }),
-      };
-    } catch (error) {
-      console.error("Transaction Execution Error:", { error, request });
-      throw new Error(
-        `Transaction failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    }
   }
 }

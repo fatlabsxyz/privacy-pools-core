@@ -220,10 +220,18 @@ export class PrivacyPoolRelayer {
    * @throws {ValidationError} - If public signals are malformed.
    */
   protected async validateWithdrawal(wp: WithdrawalPayload, chainId: ChainId) {
-    const entrypointAddress = await relayerConfig.getEntrypointAddress(chainId);
-    const feeReceiverAddress = await relayerConfig.getFeeReceiverAddress(chainId);
-    const signerAddress = privateKeyToAccount(await relayerConfig.getSignerPrivateKey(chainId)).address;
+    const [
+      entrypointAddress, 
+      feeReceiverAddress, 
+      signerPrivateKey, 
+    ] = await Promise.all([
+      relayerConfig.getEntrypointAddress(chainId),
+      relayerConfig.getFeeReceiverAddress(chainId),
+      relayerConfig.getSignerPrivateKey(chainId),
+    ]);
 
+    const signerAddress = privateKeyToAccount(signerPrivateKey).address;
+    
     const extraGas = wp.feeCommitment?.extraGas ?? false;
 
     // If there's a fee commitment, then we use it's withdrawalData as source of truth to check against the proof.

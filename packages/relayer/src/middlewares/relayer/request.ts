@@ -16,9 +16,8 @@ export function validateDetailsMiddleware(
 ) {
   const result = validateDetailsQuerystring(req.query);
   if (!result.success) {
-    const messages: string[] = [];
-    result.errors?.forEach(e => e?.message ? messages.push(e.message) : undefined);
-    next(ValidationError.invalidQuerystring({ message: messages.join("\n") }));
+    const messages = result.errors?.filter(({message}) => message !== undefined).map(({message}) => message)
+    next(ValidationError.invalidQuerystring({ message: messages!.join("\n") }));
     return;
   }
   (req as DetailsRequest).parsedQuery = result.data;
@@ -33,9 +32,8 @@ export function validateRelayRequestMiddleware(
 ) {
   const result = validateRelayRequestBody(req.body);
   if (!result.success) {
-    const messages: string[] = [];
-    result.errors?.forEach(e => e?.message ? messages.push(e.message) : undefined);
-    next(ValidationError.invalidInput({ message: messages.join("\n") }));
+    const messages = result.errors?.filter(({message}) => message !== undefined).map(({message}) => message)
+    next(ValidationError.invalidInput({ message: messages!.join("\n") }));
     return;
   }
   req.body = result.data;
@@ -50,9 +48,8 @@ export function validateQuoteMiddleware(
 ) {
   const result = validateQuoteBody(req.body);
   if (!result.success) {
-    const messages: string[] = [];
-    result.errors?.forEach(e => e?.message ? messages.push(e.message) : undefined);
-    next(ValidationError.invalidInput({ message: messages.join("\n") }));
+    const messages = result.errors?.filter(({message}) => message !== undefined).map(({message}) => message)
+    next(ValidationError.invalidInput({ message: messages!.join("\n") }));
     return;
   }
   req.body = result.data;

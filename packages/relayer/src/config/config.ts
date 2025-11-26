@@ -175,13 +175,7 @@ export class RelayerConfig {
       }),
       switchMap(async ({oldConfig, newConfig}) => {
         if (!this.isConfigEqual(oldConfig, newConfig)) {
-
-          // save backup of old config values
-          await this.writeConfigBackup(oldConfig, 'backup-config');
-
-          // save the merged config values
-          await this.writeConfig(newConfig);
-
+          await this.saveConfig(oldConfig, newConfig);
         }
         return this.safeishConfig(newConfig);
       })
@@ -231,17 +225,23 @@ export class RelayerConfig {
       }),
       switchMap(async ({oldConfig, newConfig}) => {
         if (!this.isConfigEqual(oldConfig, newConfig)) {
-
-          // save backup of old config values
-          await this.writeConfigBackup(oldConfig, 'backup-config');
-
-          // save the merged config values
-          await this.writeConfig(newConfig);
-
+          await this.saveConfig(oldConfig, newConfig);
         }
         return this.safeishConfig(newConfig);
       })
     )
+  }
+
+  /**
+   * Saves config by backing up the old config and writing the new one
+   * 
+   * @param {Config} oldConfig - The old config to backup
+   * @param {Config} newConfig - The new config to write
+   * @returns {Promise<void>}
+   */
+  private async saveConfig(oldConfig: Config, newConfig: Config): Promise<void> {
+    await this.writeConfigBackup(oldConfig, 'backup-config');
+    await this.writeConfig(newConfig);
   }
 
   /**

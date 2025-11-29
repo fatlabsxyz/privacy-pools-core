@@ -2,7 +2,7 @@ import sqlite3 from "sqlite3";
 import { open, Database } from "sqlite";
 
 import path from "path";
-import { relayerConfig } from "../config/index.js";
+import { RelayerConfig } from "../config/index.js";
 import { RelayerDatabase } from "../types/db.types.js";
 import {
   RequestStatus,
@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS requests (
    */
   async init(): Promise<void> {
     if (!this.dbPath) {
-      const config = await relayerConfig.getConfig();
+      const config = await new RelayerConfig().fullConfig();
       this.dbPath = path.resolve(config.sqlite_db_path);
     }
     try {

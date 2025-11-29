@@ -21,7 +21,6 @@ export type NativeCurrency = z.infer<typeof zNativeCurrency>;
 export type CommonConfig = z.infer<typeof zCommonConfig>;
 export type DefaultConfig = z.infer<typeof zDefaultConfig>;
 export type RawConfig = z.infer<typeof zRawConfig>; 
-export type Config = z.infer<typeof zConfig>; 
 
 export type SafeDefaultConfig = {
   entrypoint_address: DefaultConfig['entrypoint_address'];

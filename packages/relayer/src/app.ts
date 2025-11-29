@@ -7,7 +7,7 @@ import {
   notFoundMiddleware,
 } from "./middlewares/index.js";
 import { adminRouter, relayerRouter } from "./routes/index.js";
-import { relayerConfig } from "./config/index.js";
+import { RelayerConfig } from "./config/index.js";
 import { adminMiddleware } from "./middlewares/admin/admin.middleware.js";
 
 // CORS config - allow all origins by default for development and testnet
@@ -43,11 +43,12 @@ export async function createApp(): Promise<Express> {
 
   app.use(parseJsonMiddleware);
   app.use(marshalResponseMiddleware);
+  const config = new RelayerConfig(); 
 
   const {
     allowed_domains,
     cors_allow_all
-  } = await relayerConfig.getConfig();
+  } = await config.fullConfig();
 
   app.use(cors(corsOptions(allowed_domains, cors_allow_all)));
 

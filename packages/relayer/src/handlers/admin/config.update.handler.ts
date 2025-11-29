@@ -1,8 +1,7 @@
 import { NextFunction, Response } from "express";
 import { ConfigChangeMarshall } from "../../types.js";
-import { lastValueFrom } from "rxjs";
 import { UpdateConfigRequest } from "../../middlewares/admin/config.middleware.js";
-import { relayerConfig } from "../../config/index.js";
+import { RelayerConfig } from "../../config/index.js";
 
 /**
  * Handler for the relayer config endpoint.
@@ -22,7 +21,8 @@ export async function configUpdateHandler(
 
     console.debug(`call to /config with:`, body);
 
-    const newConfig = await lastValueFrom(relayerConfig.updateConfig(body));
+    const config = new RelayerConfig();
+    const newConfig = await config.updateConfig(body);
 
     // Return details for the specific asset
     res.status(200).json(

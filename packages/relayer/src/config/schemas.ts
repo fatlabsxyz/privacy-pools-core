@@ -116,8 +116,15 @@ export const zConfig = zRawConfig.transform((data) => {
   allowed_domains: z.array(z.string()),
 }));
 
-export const zUpdateChainConfig = zVariableChainConfig
-  .partial().readonly();
+export const zUpdateChainConfig = z.object({
+  chain_id: zChainId,
+  chain_name: z.string().optional(),
+  rpc_url: z.string().url().optional(),
+  max_gas_price: zNonNegativeBigInt.optional(),
+  entrypoint_address: zAddress.optional(),
+  supported_assets: z.array(zAssetConfig).optional(),
+  native_currency: zNativeCurrency.optional(),
+}).readonly();
 
 export type UpdateConfigBody = z.infer<typeof zUpdateChainConfig>;
 

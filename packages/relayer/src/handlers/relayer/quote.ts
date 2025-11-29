@@ -1,6 +1,6 @@
 import { NextFunction, Response } from "express";
 import { Address, getAddress } from "viem";
-import { isExceptionToken, relayerConfig } from "../../config/index.js";
+import { isExceptionToken, RelayerConfig } from "../../config/index.js";
 import { QuoterError } from "../../exceptions/base.exception.js";
 import { web3Provider } from "../../providers/index.js";
 import { quoteService } from "../../services/index.js";
@@ -26,7 +26,9 @@ export async function relayQuoteHandler(
   const asset = req.body.asset;
   let extraGas = Boolean(req.body.extraGas);
 
-  const [assetConfig, error]= await relayerConfig.getAssetConfig(chainId, asset);
+  
+  const chain = new RelayerConfig().chain(chainId)
+  const [assetConfig, error]= await chain.assetConfig(asset);
   if (error)
     return next(QuoterError.assetNotSupported(`Asset ${asset} for chain ${chainId} is not supported`));
 
@@ -65,11 +67,11 @@ export async function relayQuoteHandler(
 
   if (recipient) {
     let feeReceiverAddress: Address;
-    const finalFeeReceiverAddress = await relayerConfig.getFeeReceiverAddress(chainId);
+    const finalFeeReceiverAddress = await chain.feeReceiverAddress();
     if (extraGas) {
-      const pkey = await relayerConfig.getSignerPrivateKey(chainId);
+      const pkey = await chain.signerPrivateKey();
       const signer = privateKeyToAccount(pkey);
-      if (await relayerConfig.isFeeReceiverSameAsSigner(chainId)) {
+      if (await chain.isFeeReceiverSameAsSigner()) {
         feeReceiverAddress = finalFeeReceiverAddress;
       } else {
         feeReceiverAddress = signer.address;

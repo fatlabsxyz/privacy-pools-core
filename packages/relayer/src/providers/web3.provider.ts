@@ -1,8 +1,6 @@
-import { Chain, createPublicClient, createWalletClient, Hex, http, PublicClient, verifyTypedData, WalletClient } from "viem";
+import { createPublicClient, createWalletClient, http, PublicClient, verifyTypedData, WalletClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import {
-  relayerConfig
-} from "../config/index.js";
+import { RelayerConfig } from "../config/index.js";
 import { FeeCommitment } from "../interfaces/relayer/common.js";
 import { createChainObject } from "../utils.js";
 import { ChainId } from "../types.js";
@@ -39,8 +37,9 @@ export class Web3Provider implements IWeb3Provider {
    *
    **/
   async client(chainId: ChainId): Promise<PublicClient> {
-    const chainConfig = await relayerConfig.getChainConfig(chainId);
-    const chain = createChainObject(chainConfig);  
+    const config = new RelayerConfig();
+    const chainConfig = await config.chain(chainId).config();
+    const chain = createChainObject(chainConfig); 
     const client = createPublicClient({ 
       chain, 
       transport: http(chain.rpcUrls.default.http[0])
@@ -52,9 +51,10 @@ export class Web3Provider implements IWeb3Provider {
   }
 
   async signer(chainId: ChainId): Promise<WalletClient> {
-    const chainConfig = await relayerConfig.getChainConfig(chainId);
+    const config = new RelayerConfig().chain(chainId);
+    const chainConfig = await config.config();
     const chain = createChainObject(chainConfig);  
-    const pkey = await relayerConfig.getSignerPrivateKey(chainId);
+    const pkey = await config.signerPrivateKey();
     const account = privateKeyToAccount(pkey);
     const signer = createWalletClient({
       account,
@@ -73,7 +73,8 @@ export class Web3Provider implements IWeb3Provider {
   }
 
   async signRelayerCommitment(chainId: ChainId, commitment: Omit<FeeCommitment, 'signedRelayerCommitment'>) {
-    const pkey = await relayerConfig.getSignerPrivateKey(chainId);
+    const chain = new RelayerConfig().chain(chainId);
+    const pkey = await chain.signerPrivateKey();
     const signer = privateKeyToAccount(pkey);
     const { withdrawalData, expiration, extraGas, amount, asset } = commitment;
     return signer.signTypedData({
@@ -91,7 +92,8 @@ export class Web3Provider implements IWeb3Provider {
   }
 
   async verifyRelayerCommitment(chainId: ChainId, commitment: FeeCommitment): Promise<boolean> {
-    const pkey = await relayerConfig.getSignerPrivateKey(chainId);
+    const chain = new RelayerConfig().chain(chainId);
+    const pkey = await chain.signerPrivateKey();
     const signer = privateKeyToAccount(pkey);
     const { withdrawalData, asset, expiration, amount, extraGas, signedRelayerCommitment } = commitment;
     return verifyTypedData({

@@ -82,6 +82,3 @@ describe("relayRequestHandler", () => {
   });
 
 });
-function createApp(): any {
-    throw new Error("Function not implemented.");
-}

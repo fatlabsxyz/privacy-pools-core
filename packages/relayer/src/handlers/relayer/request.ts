@@ -1,5 +1,5 @@
 import { NextFunction, Response } from "express";
-import { isExceptionToken, relayerConfig } from "../../config/index.js";
+import { isExceptionToken, RelayerConfig } from "../../config/index.js";
 import { ConfigError, ValidationError, RelayerError } from "../../exceptions/base.exception.js";
 import {
   RelayerResponse,
@@ -46,7 +46,9 @@ async function parseWithdrawal(body: RelayRequest["body"]): Promise<{ payload: W
   const payload = relayRequestBodyToWithdrawalPayload(body);
   const chainId = body.chainId;
 
-  const isChainSupportedThough = await relayerConfig.isChainSupported(chainId)
+
+  const chain = new RelayerConfig().chain(chainId);
+  const isChainSupportedThough = await chain.isChainSupported(chainId);
 
   // Check if the chain is supported early
   if (!isChainSupportedThough) {
@@ -70,7 +72,9 @@ export async function relayRequestHandler(
   try {
     const { payload: withdrawalPayload, chainId } = await parseWithdrawal(req.body);
 
-    const config = await relayerConfig.getChainConfig(chainId);
+
+    const chain = new RelayerConfig().chain(chainId);
+    const config = await chain.config();
     const maxGasPrice = config.max_gas_price;
     const currentGasPrice = await web3Provider.getGasPrice(chainId);
 

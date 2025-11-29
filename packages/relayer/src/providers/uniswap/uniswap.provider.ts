@@ -16,7 +16,7 @@ import { FeeTiers, getPermit2Address, getQuoterAddress, getRouterAddress, getV3F
 import { createPermit2 } from './createPermit.js';
 import { encodePath, hopsFromAddressRoute } from './pools.js';
 import { ChainId } from '../../types.js';
-import { relayerConfig } from '../../config/index.js';
+import { RelayerConfig } from '../../config/index.js';
 
 export type UniswapQuote = {
   chainId: ChainId;
@@ -303,7 +303,8 @@ export class UniswapProvider {
 
   async approvePermit2forERC20(tokenIn: `0x${string}`, chainId: ChainId) {
     //  0) - (this is done only once) - Approve Permit2 to move Relayer's ERC20
-    const pkey = await relayerConfig.getSignerPrivateKey(chainId);
+    const config = new RelayerConfig().chain(chainId);
+    const pkey = await config.signerPrivateKey();
     const relayer = privateKeyToAccount(pkey);
     const PERMIT2_ADDRESS = getPermit2Address(chainId);
     const client = await web3Provider.client(chainId);
@@ -413,11 +414,12 @@ export class UniswapProvider {
   }: SwapWithRefundParams & { encodedPath: `0x${string}`; }): Promise<WriteContractParameters> {
 
     await this.approvePermit2forERC20(tokenIn, chainId);
+    const config = new RelayerConfig().chain(chainId);
 
     const minAmountOut = refundAmount;
     const ROUTER_ADDRESS = getRouterAddress(chainId);
     const PERMIT2_ADDRESS = getPermit2Address(chainId);
-    const pkey = await relayerConfig.getSignerPrivateKey(chainId);
+    const pkey = await config.signerPrivateKey();
     const relayer = privateKeyToAccount(pkey);
     const client = await web3Provider.client(chainId);
 
@@ -439,7 +441,7 @@ export class UniswapProvider {
     });
 
     let instructions;
-    if (await relayerConfig.isFeeReceiverSameAsSigner(chainId)) {
+    if (await config.isFeeReceiverSameAsSigner()) {
       // If feeReceiver is the same as signer, moving coins around is easier
       instructions = UniswapProvider.createInstructionsIfFeeReceiverIsRelayer({
         relayer,

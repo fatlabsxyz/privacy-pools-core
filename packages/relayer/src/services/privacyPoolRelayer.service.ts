@@ -2,7 +2,7 @@
  * Handles withdrawal requests within the Privacy Pool relayer.
  */
 import { getAddress } from "viem";
-import { relayerConfig } from "../config/index.js";
+import { RelayerConfig } from "../config/index.js";
 import {
   BlockchainError,
   ConfigError,
@@ -148,11 +148,13 @@ export class PrivacyPoolRelayer {
     const relayReceipt = await client.waitForTransactionReceipt({ hash: relayTx as `0x${string}` });
     const { gasUsed: relayGasUsed, effectiveGasPrice: relayGasPrice } = relayReceipt;
 
-    const [ assetConfig, error ] = await relayerConfig.getAssetConfig(chainId, assetAddress);
+
+    const chain = new RelayerConfig().chain(chainId);
+    const [ assetConfig, error ] = await chain.assetConfig(assetAddress);
     if (error) {
       throw ConfigError.default(error);
     } 
-    const feeReceiver = await relayerConfig.getFeeReceiverAddress(chainId);
+    const feeReceiver = await chain.feeReceiverAddress();
     const { recipient, relayFeeBPS } = decodeWithdrawalData(withdrawal.data);
     const withdrawnValue = parseSignals(proof.publicSignals).withdrawnValue;
     const gasPrice = await web3Provider.getGasPrice(chainId);
@@ -220,14 +222,16 @@ export class PrivacyPoolRelayer {
    * @throws {ValidationError} - If public signals are malformed.
    */
   protected async validateWithdrawal(wp: WithdrawalPayload, chainId: ChainId) {
+    const chain = new RelayerConfig().chain(chainId);
     const [
       entrypointAddress, 
       feeReceiverAddress, 
       signerPrivateKey, 
     ] = await Promise.all([
-      relayerConfig.getEntrypointAddress(chainId),
-      relayerConfig.getFeeReceiverAddress(chainId),
-      relayerConfig.getSignerPrivateKey(chainId),
+
+      chain.entrypointAddress(),
+      chain.feeReceiverAddress(),
+      chain.signerPrivateKey(),
     ]);
 
     const signerAddress = privateKeyToAccount(signerPrivateKey).address;
@@ -257,7 +261,7 @@ export class PrivacyPoolRelayer {
       );
     }
 
-    if (extraGas && !await relayerConfig.isFeeReceiverSameAsSigner(chainId)) {
+    if (extraGas && !await chain.isFeeReceiverSameAsSigner()) {
       if (getAddress(feeRecipient) !== getAddress(signerAddress)) {
         throw WithdrawalValidationError.feeReceiverMismatch(
           `Fee recipient with extraGas mismatch: expected "${signerAddress}", got "${feeRecipient}".`,
@@ -283,7 +287,7 @@ export class PrivacyPoolRelayer {
     const { assetAddress } = await this.sdkProvider.scopeData(wp.scope, chainId);
 
     // Get asset configuration for this chain and asset
-    const [assetConfig, error]  = await relayerConfig.getAssetConfig(chainId, assetAddress);
+    const [assetConfig, error]  = await chain.assetConfig(assetAddress);
 
     if (error) {
       throw WithdrawalValidationError.assetNotSupported(error);

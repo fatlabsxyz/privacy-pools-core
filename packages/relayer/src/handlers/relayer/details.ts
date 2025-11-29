@@ -2,7 +2,7 @@ import { NextFunction, Response } from "express";
 import { DetailsMarshall } from "../../types.js";
 import { ValidationError } from "../../exceptions/base.exception.js";
 import { DetailsRequest } from "../../middlewares/index.js";
-import { relayerConfig } from "../../config/index.js";
+import { RelayerConfig } from "../../config/index.js";
 
 /**
  * Handler for the relayer details endpoint.
@@ -22,11 +22,13 @@ export async function relayerDetailsHandler(
     const chainId = req.parsedQuery.chainId;
     const assetAddress = req.parsedQuery.assetAddress;
 
-    const chainConfig = await relayerConfig.getChainConfig(chainId);
+    const chain = new RelayerConfig().chain(chainId)
 
-    const feeReceiverAddress = chainConfig.fee_receiver_address;
+    const chainConfig = await chain.config();
 
-    const [assetConfig, error] = await relayerConfig.getAssetConfig(chainId, assetAddress);
+    const feeReceiverAddress = await chain.feeReceiverAddress();
+
+    const [assetConfig, error] = await chain.assetConfig(assetAddress);
 
     if (error) {
       return next(ValidationError.invalidInput({
@@ -38,7 +40,7 @@ export async function relayerDetailsHandler(
       res.locals.marshalResponse(
         new DetailsMarshall({
           feeBPS: assetConfig!.fee_bps,
-          feeReceiverAddress: feeReceiverAddress,
+          feeReceiverAddress,
           chainId,
           maxGasPrice: chainConfig.max_gas_price,
           assetAddress: assetAddress,

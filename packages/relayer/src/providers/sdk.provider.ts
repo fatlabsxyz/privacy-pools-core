@@ -13,9 +13,7 @@ import {
   type Hash,
 } from "@0xbow/privacy-pools-core-sdk";
 import { Address } from "viem";
-import {
-  relayerConfig
-} from "../config/index.js";
+import { RelayerConfig } from "../config/index.js";
 import { WithdrawalPayload } from "../interfaces/relayer/request.js";
 import { RelayerError, SdkError, ConfigError } from "../exceptions/base.exception.js";
 import { SdkProviderInterface } from "../types/sdk.types.js";
@@ -44,10 +42,11 @@ export class SdkProvider implements SdkProviderInterface {
    * @throws {RelayerError} - If the chain is not supported.
    */
   private async getContractsForChain(chainId: ChainId): Promise<ContractInteractionsService> {
-    const chainConfig = await relayerConfig.getChainConfig(chainId);
+    const config = new RelayerConfig().chain(chainId);
+    const chainConfig = await config.config();
     const chain = createChainObject(chainConfig);
-    const entrypointAddress = await relayerConfig.getEntrypointAddress(chainId);
-    const signerPrivateKey = await relayerConfig.getEntrypointAddress(chainId);
+    const entrypointAddress = await config.entrypointAddress();
+    const signerPrivateKey = await config.entrypointAddress();
 
     // Create contract instance
     const contracts = this.sdk.createContractInstance(

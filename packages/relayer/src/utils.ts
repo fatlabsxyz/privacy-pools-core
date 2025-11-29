@@ -17,9 +17,7 @@ import {
   WithdrawPublicSignals,
 } from "./interfaces/relayer/request.js";
 import { FeeDataAbi } from "./types/abi.types.js";
-import { privateKeyToAccount } from "viem/accounts";
 import { ChainId } from "./types.js";
-import { relayerConfig } from "./config/index.js";
 
 
 export const JSONStringifyBigInt = (json_string: object) => {

@@ -8,14 +8,14 @@ export interface DeleteConfigRequest extends Request { body: DeleteConfigBody };
 // Middleware to validate the config update request
 export function validateConfigUpdateMiddleware(
   req: Request,
-  res: Response,
+  _res: Response,
   next: NextFunction,
 ) {
   const result = validateConfigUpdateBody(req.body);
   console.debug("Config: validating request: ", result);
   if (!result.success) {
     const messages: string[] = [];
-    result.errors?.forEach((e) =>{
+    result.errors?.forEach((e) => {
       e?.message ? messages.push(`${e?.path[0]!.toString()}: ${e.message}`) : undefined;
     });
     next(ValidationError.invalidQuerystring({ message: messages.join() }));
@@ -28,14 +28,14 @@ export function validateConfigUpdateMiddleware(
 // Middleware to validate the config delete request
 export function validateConfigDeleteMiddleware(
   req: Request,
-  res: Response,
+  _res: Response,
   next: NextFunction,
 ) {
   const result = validateConfigDeleteBody(req.body);
   console.debug("Config Delete: validating request: ", result);
   if (!result.success) {
     const messages: string[] = [];
-    result.errors?.forEach((e) =>{
+    result.errors?.forEach((e) => {
       e?.message ? messages.push(`${e?.path[0]!.toString()}: ${e.message}`) : undefined;
     });
     next(ValidationError.invalidQuerystring({ message: messages.join() }));

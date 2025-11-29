@@ -1,8 +1,7 @@
 import { NextFunction, Response } from "express";
 import { ConfigChangeMarshall } from "../../types.js";
 import { DeleteConfigRequest } from "../../middlewares/admin/config.middleware.js";
-import { relayerConfig } from "../../config/index.js";
-import { lastValueFrom } from "rxjs";
+import { RelayerConfig } from "../../config/index.js";
 
 /**
  * Handler for the relayer config delete endpoint.
@@ -22,7 +21,8 @@ export async function configDeleteHandler(
 
     console.debug(`call to DELETE /config with:`, body);
 
-    const newConfig = await lastValueFrom(relayerConfig.deleteConfig(body));
+    const config = new RelayerConfig();
+    const newConfig = await config.deleteConfig(body);
 
     // Return details for the specific asset
     res.status(200).json(

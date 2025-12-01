@@ -1,12 +1,10 @@
 import { z } from "zod";
 import { 
   zAssetConfig, 
-  zChainConfig, 
   zCommonConfig, 
   zDefaultConfig, 
   zVariableChainConfig, 
   zRawChainConfig,
-  zConfig,
   zRawConfig,
   zNativeCurrency
 } from "./schemas.js";
@@ -14,7 +12,6 @@ import {
 // Export types derived from Zod schemas
 export type AssetConfig = z.infer<typeof zAssetConfig>;
 export type RawChainConfig = z.infer<typeof zRawChainConfig>;
-export type ChainConfig = z.infer<typeof zChainConfig>;
 export type VariableChainConfig = z.infer<typeof zVariableChainConfig>;
 export type UpdateChainConfigBody = VariableChainConfig;
 export type NativeCurrency = z.infer<typeof zNativeCurrency>;

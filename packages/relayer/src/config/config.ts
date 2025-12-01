@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { ConfigError } from "../exceptions/base.exception.js";
 import { PrivateKey, ChainId } from "../types.js";
 import { JSONStringifyBigInt } from "../utils.js";
-import { UpdateConfigBody, DeleteConfigBody, zConfig, zRawConfig, zRawChainConfig } from "./schemas.js";
+import { UpdateConfigBody, DeleteConfigBody, zRawConfig, zRawChainConfig } from "./schemas.js";
 import { AssetConfig, RawChainConfig, RawConfig, SafeConfig } from "./types.js";
 import { Address, getAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -291,10 +291,12 @@ export class RelayerConfig {
       supported_assets: updatedAssets
     };
     
-    const validatedChain = zRawConfig.parse(updatedChain);
+    const serializedChain = JSON.parse(JSONStringifyBigInt(updatedChain));
+    const validatedChain = zRawChainConfig.parse(serializedChain);
     result.chains[chainIndex] = validatedChain as any; // TODO SORRY BEZZE
 
-    const newConfig = zConfig.parse(result);
+    const serializedConfig = JSON.parse(JSONStringifyBigInt(result));
+    const newConfig = zRawConfig.parse(serializedConfig);
 
     if (!this.isConfigEqual(oldConfig, newConfig)) {
       await this.saveConfig(oldConfig, newConfig);
@@ -426,6 +428,7 @@ export class RelayerConfig {
   }
 
   private mergeConfig(existing: RawConfig, updates: UpdateConfigBody): RawConfig {
+    console.log("STARTING MERGE CONFIG")
     if (!updates.chain_id) {
       throw new ConfigError("chain_id is required for config updates");
     }
@@ -465,8 +468,12 @@ export class RelayerConfig {
       }
     }
 
-    const validatedChain = zRawConfig.parse(updatedChain);
+    console.log("PARSING RAW CONFING")
+    const serializedChain = JSON.parse(JSONStringifyBigInt(updatedChain));
+    const validatedChain = zRawChainConfig.parse(serializedChain);
     result.chains[chainIndex] = validatedChain as any; // TODO SORRY BEZZE
+
+    console.log("ENDING MERGE CONFIG")
 
     return result;
   }

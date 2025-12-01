@@ -84,7 +84,7 @@ export class QuoteMarshall extends RelayerMarshall {
   }
 }
 
-export interface ConfigChangeResponse extends SafeConfig {}; 
+export type ConfigChangeResponse = SafeConfig; 
 
 export class ConfigChangeMarshall extends RelayerMarshall{
   constructor(readonly response: ConfigChangeResponse) {

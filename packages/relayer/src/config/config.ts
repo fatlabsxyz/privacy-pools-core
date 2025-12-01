@@ -293,7 +293,7 @@ export class RelayerConfig {
     
     const serializedChain = JSON.parse(JSONStringifyBigInt(updatedChain));
     const validatedChain = zRawChainConfig.parse(serializedChain);
-    result.chains[chainIndex] = validatedChain as any; // TODO SORRY BEZZE
+    result.chains[chainIndex] = validatedChain as RawChainConfig;
 
     const serializedConfig = JSON.parse(JSONStringifyBigInt(result));
     const newConfig = zRawConfig.parse(serializedConfig);
@@ -464,14 +464,14 @@ export class RelayerConfig {
 
         updatedChain.supported_assets = updatedAssets;
       } else if (key !== 'chain_id') {
-        (updatedChain as any)[key] = value;
+        (updatedChain as Record<string, unknown>)[key] = value;
       }
     }
 
     console.log("PARSING RAW CONFING")
     const serializedChain = JSON.parse(JSONStringifyBigInt(updatedChain));
     const validatedChain = zRawChainConfig.parse(serializedChain);
-    result.chains[chainIndex] = validatedChain as any; // TODO SORRY BEZZE
+    result.chains[chainIndex] = validatedChain as RawChainConfig;
 
     console.log("ENDING MERGE CONFIG")
 

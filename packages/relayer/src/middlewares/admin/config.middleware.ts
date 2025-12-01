@@ -16,7 +16,9 @@ export function validateConfigUpdateMiddleware(
   if (!result.success) {
     const messages: string[] = [];
     result.errors?.forEach((e) => {
-      e?.message ? messages.push(`${e?.path[0]!.toString()}: ${e.message}`) : undefined;
+      if (e?.message) {
+        messages.push(`${e?.path[0]!.toString()}: ${e.message}`);
+      }
     });
     next(ValidationError.invalidQuerystring({ message: messages.join() }));
     return;
@@ -36,7 +38,9 @@ export function validateConfigDeleteMiddleware(
   if (!result.success) {
     const messages: string[] = [];
     result.errors?.forEach((e) => {
-      e?.message ? messages.push(`${e?.path[0]!.toString()}: ${e.message}`) : undefined;
+      if (e?.message) {
+        messages.push(`${e?.path[0]!.toString()}: ${e.message}`);
+      }
     });
     next(ValidationError.invalidQuerystring({ message: messages.join() }));
     return;

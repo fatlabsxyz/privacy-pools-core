@@ -48,15 +48,6 @@ export const zRawChainConfig = zVariableChainConfig
   .merge(zSecretConfig.partial())
   .strict();
 
-// TODO delete???
-// export const zChainConfig = zVariableChainConfig
-//   .merge(zSecretConfig)
-//   .merge(z.object({
-//     entrypoint_address: zAddress
-//   }))
-//   .strict();
-
-
 // Common configuration schema
 export const zCommonConfig = z.object({
   sqlite_db_path: z.string().transform((p) => path.resolve(p)),
@@ -81,42 +72,6 @@ export const zRawConfig = z
     allowed_domains: zCommonConfig.shape.allowed_domains,
   })
   .strict();
-
-// TODO delete???
-// export const zConfig = zRawConfig.transform((data) => {
-//   const resolvedChains = data.chains.map(chain => {
-//     const fee_receiver_address = chain.fee_receiver_address ?? data.defaults?.fee_receiver_address;
-//     const signer_private_key = chain.signer_private_key ?? data.defaults?.signer_private_key;
-//     const entrypoint_address = chain.entrypoint_address ?? data.defaults?.entrypoint_address;
-//
-//     if (!fee_receiver_address) {
-//       throw new Error(`Chain ${chain.chain_id} missing fee_receiver_address (not in chain or defaults)`);
-//     }
-//     if (!signer_private_key) {
-//       throw new Error(`Chain ${chain.chain_id} missing signer_private_key (not in chain or defaults)`);
-//     }
-//     if (!entrypoint_address) {
-//       throw new Error(`Chain ${chain.chain_id} missing entrypoint_address (not in chain or defaults)`);
-//     }
-//
-//     return {
-//       ...chain,
-//       fee_receiver_address,
-//       signer_private_key,
-//       entrypoint_address
-//     };
-//   });
-//
-//   return {
-//     ...data,
-//     chains: resolvedChains
-//   };
-// }).pipe(z.object({
-//   chains: z.array(zChainConfig),
-//   sqlite_db_path: z.string(),
-//   cors_allow_all: z.boolean(),
-//   allowed_domains: z.array(z.string()),
-// }));
 
 export const zUpdateChainConfig = z.object({
   chain_id: zChainId,

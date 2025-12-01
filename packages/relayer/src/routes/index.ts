@@ -11,7 +11,7 @@ import {
 } from "../middlewares/relayer/request.js";
 
 // Router setup
-const relayerRouter = Router();
+const relayerRouter: Router = Router();
 
 relayerRouter.get("/details", [
   validateDetailsMiddleware,

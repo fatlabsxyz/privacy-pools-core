@@ -1,5 +1,5 @@
 import bodyParser from "body-parser";
-import express, { NextFunction, Request, Response } from "express";
+import express, { NextFunction, Request, Response, Express } from "express";
 import cors from "cors";
 import {
   errorHandlerMiddleware,
@@ -10,7 +10,7 @@ import { relayerRouter } from "./routes/index.js";
 import { CORS_ALLOW_ALL, ALLOWED_DOMAINS } from "./config/index.js";
 
 // Initialize the express app
-const app = express();
+const app: Express = express();
 
 // Middleware functions
 const parseJsonMiddleware = bodyParser.json();

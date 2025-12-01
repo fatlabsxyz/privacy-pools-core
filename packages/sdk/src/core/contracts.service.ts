@@ -26,6 +26,7 @@ import { CommitmentProof, Hash } from "../types/commitment.js";
 import { bigintToHex } from "../crypto.js";
 import { ContractError } from "../errors/base.error.js";
 import { contractExecutorFactory } from "../utils/contract-executor.util.js";
+import { AdminContractInteractions } from "./admin.service.js";
 
 export class ContractInteractionsService implements ContractInteractions {
   private publicClient: PublicClient;
@@ -266,12 +267,12 @@ export class ContractInteractionsService implements ContractInteractions {
   async getStateRoot(privacyPoolAddress: Address): Promise<bigint> {
     const stateRoot = await this.publicClient.readContract({
       address: privacyPoolAddress,
-      abi: IEntrypointABI as Abi,
+      abi: IPrivacyPoolABI,
       account: this.account,
-      functionName: "latestRoot",
+      functionName: "currentRoot",
     });
 
-    return BigInt(stateRoot as string);
+    return stateRoot;
   }
 
   /**
@@ -325,34 +326,16 @@ export class ContractInteractionsService implements ContractInteractions {
       maxRelayFeeBPS
     }
   }
-
-  async registerPool(payload: RegisterPoolPayload) {
-    try {
-      const {
-        poolAddress,
-        assetAddress,
-        minimumDepositAmount,
-        maxRelayFeeBPS,
-        vettingFeeBPS
-      } = payload;
-
-      const { request } = await this.publicClient.simulateContract({
-        address: this.entrypointAddress,
-        abi: IEntrypointABI,
-        functionName: "registerPool",
-        args: [assetAddress, poolAddress, minimumDepositAmount, vettingFeeBPS, maxRelayFeeBPS],
-        account: this.account,
-      } as const);
-
-      return await this.executeTransaction(request);
-    } catch (error) {
-      console.error(`Register Pool Error: ${(error as Error).message}`, { error, payload });
-      throw new Error(
-        `Failed to register Pool: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    }
+  
+  getAdminContractsService() {
+    return new AdminContractInteractions({
+      entryPointAddress: this.entrypointAddress,
+      account: this.account,
+      publicClient: this.publicClient,
+      walletClient: this.walletClient,
+    })
   }
-
+  
   /**
    * Retrieves data about a specific scope, including the associated privacy pool
    * and the asset used in that pool.

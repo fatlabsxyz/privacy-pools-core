@@ -573,4 +573,4 @@ export const IPrivacyPoolABI = [
     "name": "ZeroAddress",
     "inputs": []
   }
-];
+] as const;

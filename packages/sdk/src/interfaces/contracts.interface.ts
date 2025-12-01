@@ -71,6 +71,4 @@ export interface ContractInteractions {
     tokenAddress: Address,
     amount: bigint,
   ): Promise<TransactionResponse>;
-
-  registerPool(payload: RegisterPoolPayload): Promise<TransactionResponse>;
 }

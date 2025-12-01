@@ -1,66 +1,88 @@
-import type { PublicClient, WalletClient } from "viem";
+import type { Account, Address, PublicClient } from "viem";
+import { contractExecutorFactory, ContractExecutorFactoryParams } from "../utils/contract-executor.util.js";
+import { RegisterPoolPayload, TransactionResponse } from "../interfaces/contracts.interface.js";
+import { IEntrypointABI } from "../abi/IEntrypoint.js";
+
+export interface AdminContractInteractionsParams extends ContractExecutorFactoryParams {
+  entryPointAddress: Address;
+  account: Account;
+}
 
 export class AdminContractInteractions {
-  constructor(
-    private walletClient: WalletClient,
-    private publicClient: PublicClient,
-  ) { }
+  private executeTransaction: (request: any) => Promise<TransactionResponse>;
 
-  registerPool(asset: StarknetAddress, pool: StarknetAddress, minimumDepositAmount: bigint, vettingFeeBPS: bigint, maxRelayFeeBPS: bigint): Promise<Call>;
-  registerPool(asset: StarknetAddress, pool: StarknetAddress, minimumDepositAmount: bigint, vettingFeeBPS: bigint, maxRelayFeeBPS: bigint, options: OptionModeSimulate): Promise<SimulateTransaction>;
-  registerPool(asset: StarknetAddress, pool: StarknetAddress, minimumDepositAmount: bigint, vettingFeeBPS: bigint, maxRelayFeeBPS: bigint, options: OptionModeExecute): Promise<InvokeFunctionResponse>;
-  async registerPool(asset: StarknetAddress, pool: StarknetAddress, minimumDepositAmount: bigint, vettingFeeBPS: bigint, maxRelayFeeBPS: bigint, options?: OptionModes) {
-    const call = this.entrypoint.populate("registerPool", [asset, pool, minimumDepositAmount, vettingFeeBPS, maxRelayFeeBPS]);
-    return _intentOptionWrapper(call, options && { ...options, account: this.contractService.providerOrAccount });
+  private entrypointAddress: Address;
+  private account: Account;
+  private publicClient: PublicClient;
+
+  constructor({
+    entryPointAddress,
+    account,
+    ...params
+  }: AdminContractInteractionsParams) {
+    this.executeTransaction = contractExecutorFactory(params);
+    this.entrypointAddress = entryPointAddress;
+    this.account = account;
+    this.publicClient = params.publicClient;
   }
 
-  updateRoot(root: bigint, ipfsCID: string): Promise<Call>;
-  updateRoot(root: bigint, ipfsCID: string, options: OptionModeSimulate): Promise<SimulateTransaction>;
-  updateRoot(root: bigint, ipfsCID: string, options: OptionModeExecute): Promise<InvokeFunctionResponse>;
-  async updateRoot(root: bigint, ipfsCID: string, options?: OptionModes) {
-    _assertIpfsCID(ipfsCID);
-    const call = this.entrypoint.populate("updateRoot", [root, ipfsCID]);
-    return _intentOptionWrapper(call, options && { ...options, account: this.contractService.providerOrAccount });
+  async registerPool(payload: RegisterPoolPayload) {
+    try {
+      const {
+        poolAddress,
+        assetAddress,
+        minimumDepositAmount,
+        maxRelayFeeBPS,
+        vettingFeeBPS
+      } = payload;
+
+      const { request } = await this.publicClient.simulateContract({
+        address: this.entrypointAddress,
+        abi: IEntrypointABI,
+        functionName: "registerPool",
+        args: [assetAddress, poolAddress, minimumDepositAmount, vettingFeeBPS, maxRelayFeeBPS],
+        account: this.account,
+      } as const);
+
+      return await this.executeTransaction(request);
+    } catch (error) {
+      console.error(`Register Pool Error: ${(error as Error).message}`, { error, payload });
+      throw new Error(
+        `Failed to register Pool: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
   }
 
-  removePool(asset: StarknetAddress): Promise<Call>;
-  removePool(asset: StarknetAddress, options: OptionModeSimulate): Promise<SimulateTransaction>;
-  removePool(asset: StarknetAddress, options: OptionModeExecute): Promise<InvokeFunctionResponse>;
-  async removePool(asset: StarknetAddress, options?: OptionModes) {
-    const call = this.entrypoint.populate("removePool", [asset]);
-    return _intentOptionWrapper(call, options && { ...options, account: this.contractService.providerOrAccount });
+  async updateRoot(root: bigint, ipfsCID: string) {
+    try {
+      const { request } = await this.publicClient.simulateContract({
+        address: this.entrypointAddress,
+        abi: IEntrypointABI,
+        functionName: 'updateRoot',
+        args: [root, ipfsCID],
+        account: this.account,
+      });
+  
+      return this.executeTransaction(request);
+    } catch (error) {
+      console.error(`Update Root Error: ${(error as Error).message}`, { error, payload: { root, ipfsCID }});
+      throw new Error(
+        `Failed to update Root: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
   }
 
-  updatePoolConfiguration(asset: StarknetAddress, minimumDepositAmount: bigint, vettingFeeBPS: bigint, maxRelayFeeBPS: bigint): Promise<Call>;
-  updatePoolConfiguration(asset: StarknetAddress, minimumDepositAmount: bigint, vettingFeeBPS: bigint, maxRelayFeeBPS: bigint, options: OptionModeSimulate): Promise<SimulateTransaction>;
-  updatePoolConfiguration(asset: StarknetAddress, minimumDepositAmount: bigint, vettingFeeBPS: bigint, maxRelayFeeBPS: bigint, options: OptionModeExecute): Promise<InvokeFunctionResponse>;
-  async updatePoolConfiguration(asset: StarknetAddress, minimumDepositAmount: bigint, vettingFeeBPS: bigint, maxRelayFeeBPS: bigint, options?: OptionModes) {
-    const call = this.entrypoint.populate("updatePoolConfiguration", [asset, minimumDepositAmount, vettingFeeBPS, maxRelayFeeBPS]);
-    return _intentOptionWrapper(call, options && { ...options, account: this.contractService.providerOrAccount });
+  async getCurrentRoot() {
+    return this.publicClient.readContract({
+      address: this.entrypointAddress,
+      abi: IEntrypointABI,
+      functionName: 'latestRoot',
+      account: this.account,
+    }).catch((error) => {
+      console.error(`Get current Root error: ${(error as Error).message}`, { error });
+      throw new Error(
+        `Failed to get current Root: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    });
   }
-
-  windDownPool(pool: StarknetAddress): Promise<Call>;
-  windDownPool(pool: StarknetAddress, options: OptionModeSimulate): Promise<SimulateTransaction>;
-  windDownPool(pool: StarknetAddress, options: OptionModeExecute): Promise<InvokeFunctionResponse>;
-  async windDownPool(pool: StarknetAddress, options?: OptionModes) {
-    const call = this.entrypoint.populate("windDownPool", [pool]);
-    return _intentOptionWrapper(call, options && { ...options, account: this.contractService.providerOrAccount });
-  }
-
-  withdrawFees(asset: StarknetAddress, recipient: StarknetAddress): Promise<Call>;
-  withdrawFees(asset: StarknetAddress, recipient: StarknetAddress, options: OptionModeSimulate): Promise<SimulateTransaction>;
-  withdrawFees(asset: StarknetAddress, recipient: StarknetAddress, options: OptionModeExecute): Promise<InvokeFunctionResponse>;
-  async withdrawFees(asset: StarknetAddress, recipient: StarknetAddress, options?: OptionModes) {
-    const call = this.entrypoint.populate("withdrawFees", [asset, recipient]);
-    return _intentOptionWrapper(call, options && { ...options, account: this.contractService.providerOrAccount });
-  }
-
-  upgrade(newClassHash: string): Promise<Call>;
-  upgrade(newClassHash: string, options: OptionModeSimulate): Promise<SimulateTransaction>;
-  upgrade(newClassHash: string, options: OptionModeExecute): Promise<InvokeFunctionResponse>;
-  async upgrade(newClassHash: string, options?: OptionModes) {
-    const call = this.entrypoint.populate("upgrade", [newClassHash]);
-    return _intentOptionWrapper(call, options && { ...options, account: this.contractService.providerOrAccount });
-  }
-
 }

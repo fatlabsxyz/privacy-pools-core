@@ -81,26 +81,26 @@ class ChainConfig extends ConfigReader {
    * @throws {ConfigError} If the configuration is not initialized
    */
   async feeReceiverAddress(): Promise<Address> {
-    const { fee_receiver_address: configFeeRecieverAddress } = await this.config();
-    const envFeeRecieverAddress = process.env["FEE_RECIEVER_ADDRESS"];
-
-    const error: string[] = [];
-    if (!envFeeRecieverAddress && !configFeeRecieverAddress) {
-      error.push(`No feeRecieverAddress found on ${this.filePath}`);
-    }
-
-    const fee_receiver_address: Address = envFeeRecieverAddress
-      ? (console.warn("Using ENV fee_reciever_address"), getAddress(envFeeRecieverAddress))
-      : (console.warn("Using config.json fee_reciever_address"), configFeeRecieverAddress!);
-
     const cr = new ConfigReader(this.filePath);
     const config = await cr.parseConfig();
-    const def = config.defaults!;
 
-    const chainFeeReceiver = fee_receiver_address ?? def.fee_receiver_address;
+    const defaultsFeeRecieverAddress = config.defaults?.fee_receiver_address;
+    const configFeeRecieverAddress = config.chains[this.chainId]?.fee_receiver_address;
+    const envFeeRecieverAddress = process.env["FEE_RECIEVER_ADDRESS"];
 
-    if (!chainFeeReceiver) {
-      throw ConfigError.default(`fee_reciever_address for chain_id: ${this.chainId} not found`);
+    // Priority: config value > env value > default value
+    let chainFeeReceiver: Address;
+    if (configFeeRecieverAddress) {
+      console.log(`Using config fee_receiver_address for chain ${this.chainId}: ${configFeeRecieverAddress}`);
+      chainFeeReceiver = configFeeRecieverAddress;
+    } else if (envFeeRecieverAddress) {
+      console.log(`Using ENV fee_receiver_address for chain ${this.chainId}: ${envFeeRecieverAddress}`);
+      chainFeeReceiver = getAddress(envFeeRecieverAddress);
+    } else if (defaultsFeeRecieverAddress) {
+      console.log(`Using default fee_receiver_address for chain ${this.chainId}: ${defaultsFeeRecieverAddress}`);
+      chainFeeReceiver = defaultsFeeRecieverAddress;
+    } else {
+      throw ConfigError.default(`fee_receiver_address for chain_id: ${this.chainId} not found in config, env, or defaults`);
     }
 
     return chainFeeReceiver;
@@ -113,28 +113,29 @@ class ChainConfig extends ConfigReader {
    * @throws {ConfigError} If the configuration is not initialized
    */
   async signerPrivateKey(): Promise<PrivateKey> {
-    const { signer_private_key: configSignerPrivateKey } = await this.config();
-    const envSignerPrivateKey = process.env["SIGNER_PRIVATE_KEY"];
-
-    const error: string[] = [];
-    if (!envSignerPrivateKey && !configSignerPrivateKey) {
-      error.push(`No feeRecieverAddress found on ${this.filePath}`);
-    }
-
-    const signer_private_key: Address = envSignerPrivateKey
-      ? (console.warn("Using ENV signer_private_key"), getAddress(envSignerPrivateKey))
-      : (console.warn("Using config.json signer_private_key"), configSignerPrivateKey!);
-
     const cr = new ConfigReader(this.filePath);
     const config = await cr.parseConfig();
-    const def = config.defaults!;
 
-    const chainSignerKey = signer_private_key ?? def.signer_private_key;
+    const defaultsSignerPrivateKey = config.defaults?.signer_private_key;
+    const configSignerPrivateKey = config.chains[this.chainId]?.signer_private_key;
+    const envSignerPrivateKey = process.env["SIGNER_PRIVATE_KEY"] as PrivateKey | undefined;
 
-    if (!chainSignerKey) {
-      throw ConfigError.default(`signer_private_key for chain_id: ${this.chainId} not found`);
+    // Priority: config value > env value > default value
+    let chainSignerKey: PrivateKey;
+    if (configSignerPrivateKey) {
+      console.log(`Using config signer_private_key for chain ${this.chainId}`);
+      chainSignerKey = configSignerPrivateKey;
+    } else if (envSignerPrivateKey) {
+      console.log(`Using ENV signer_private_key for chain ${this.chainId}`);
+      chainSignerKey = envSignerPrivateKey;
+    } else if (defaultsSignerPrivateKey) {
+      console.log(`Using default signer_private_key for chain ${this.chainId}`);
+      chainSignerKey = defaultsSignerPrivateKey;
+    } else {
+      throw ConfigError.default(`signer_private_key for chain_id: ${this.chainId} not found in config, env, or defaults`);
     }
-    return chainSignerKey; 
+
+    return chainSignerKey;
   }
 
   /**
@@ -143,9 +144,9 @@ class ChainConfig extends ConfigReader {
    * @returns {Address} The entrypoint address
    */
   async entrypointAddress(): Promise<Address> {
-    const { entrypoint_address } = await this.config();
     const cr = new ConfigReader(this.filePath);
     const config = await cr.parseConfig();
+    const entrypoint_address = config.chains[this.chainId]?.entrypoint_address!;
     const def = config.defaults!;
 
     const entrypointAddress = entrypoint_address ?? def.entrypoint_address;
@@ -205,7 +206,6 @@ class ChainConfig extends ConfigReader {
     const chains = await this.chainConfigList();
     return chains.some(chain => chain.chain_id === chainId);
   }
-
 
 }
 
@@ -293,7 +293,7 @@ export class RelayerConfig {
     
     const serializedChain = JSON.parse(JSONStringifyBigInt(updatedChain));
     const validatedChain = zRawChainConfig.parse(serializedChain);
-    result.chains[chainIndex] = validatedChain as RawChainConfig;
+    result.chains[chainIndex] = validatedChain as any; // TODO SORRY BEZZE
 
     const serializedConfig = JSON.parse(JSONStringifyBigInt(result));
     const newConfig = zRawConfig.parse(serializedConfig);
@@ -464,14 +464,14 @@ export class RelayerConfig {
 
         updatedChain.supported_assets = updatedAssets;
       } else if (key !== 'chain_id') {
-        (updatedChain as Record<string, unknown>)[key] = value;
+        (updatedChain as any)[key] = value;
       }
     }
 
     console.log("PARSING RAW CONFING")
     const serializedChain = JSON.parse(JSONStringifyBigInt(updatedChain));
     const validatedChain = zRawChainConfig.parse(serializedChain);
-    result.chains[chainIndex] = validatedChain as RawChainConfig;
+    result.chains[chainIndex] = validatedChain as any; // TODO SORRY BEZZE
 
     console.log("ENDING MERGE CONFIG")
 

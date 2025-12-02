@@ -3,10 +3,11 @@ import {
   Chain,
   ContractFunctionExecutionError,
   ContractFunctionRevertedError,
-  decodeAbiParameters, DecodeAbiParametersErrorType,
+  decodeAbiParameters,
+  DecodeAbiParametersErrorType,
   encodeAbiParameters,
   EncodeAbiParametersErrorType,
-  BaseError as ViemError
+  BaseError as ViemError,
 } from "viem";
 import {
   ValidationError,
@@ -21,13 +22,17 @@ import { getFeeReceiverAddress, getSignerPrivateKey } from "./config/index.js";
 import { privateKeyToAccount } from "viem/accounts";
 
 interface WithdrawalData {
-  recipient: Address,
-  feeRecipient: Address,
+  recipient: Address;
+  feeRecipient: Address;
   relayFeeBPS: bigint;
 }
 
 export const JSONStringifyBigInt = (json_string: object) => {
-  return JSON.stringify(json_string, (_: string, v: unknown) => typeof v === 'bigint' ? v.toString() : v, 2);
+  return JSON.stringify(
+    json_string,
+    (_: string, v: unknown) => (typeof v === "bigint" ? v.toString() : v),
+    2,
+  );
 };
 
 // Alias for better naming
@@ -49,7 +54,9 @@ export function decodeWithdrawalData(data: `0x${string}`): WithdrawalData {
   }
 }
 
-export function encodeWithdrawalData(withdrawalData: WithdrawalData): `0x${string}` {
+export function encodeWithdrawalData(
+  withdrawalData: WithdrawalData,
+): `0x${string}` {
   try {
     return encodeAbiParameters(FeeDataAbi, [withdrawalData]);
   } catch (e) {
@@ -87,7 +94,7 @@ export function parseSignals(
 
 /**
  * Creates a Chain object for the given chain configuration
- * 
+ *
  * @param {object} chainConfig - The chain configuration
  * @returns {Chain} - The Chain object
  */
@@ -95,7 +102,7 @@ export function createChainObject(chainConfig: {
   chain_id: number;
   chain_name: string;
   rpc_url: string;
-  native_currency?: { name: string; symbol: string; decimals: number; };
+  native_currency?: { name: string; symbol: string; decimals: number };
 }): Chain {
   return {
     id: chainConfig.chain_id,
@@ -103,7 +110,7 @@ export function createChainObject(chainConfig: {
     nativeCurrency: chainConfig.native_currency || {
       name: "Ether",
       symbol: "ETH",
-      decimals: 18
+      decimals: 18,
     },
     rpcUrls: {
       default: { http: [chainConfig.rpc_url] },
@@ -122,7 +129,9 @@ export function isViemError(error: unknown): error is ViemError {
 
 export function isFeeReceiverSameAsSigner(chainId: number) {
   const feeReceiverAddress = getFeeReceiverAddress(chainId);
-  const signerAddress = privateKeyToAccount(getSignerPrivateKey(chainId) as `0x${string}`).address;
+  const signerAddress = privateKeyToAccount(
+    getSignerPrivateKey(chainId) as `0x${string}`,
+  ).address;
   return feeReceiverAddress.toLowerCase() === signerAddress.toLowerCase();
 }
 

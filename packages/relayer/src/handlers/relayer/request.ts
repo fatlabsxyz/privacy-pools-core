@@ -1,6 +1,15 @@
 import { NextFunction, Request, Response } from "express";
-import { CONFIG, getAssetConfig, getChainConfig, isExceptionToken } from "../../config/index.js";
-import { ConfigError, ValidationError, RelayerError } from "../../exceptions/base.exception.js";
+import {
+  CONFIG,
+  getAssetConfig,
+  getChainConfig,
+  isExceptionToken,
+} from "../../config/index.js";
+import {
+  ConfigError,
+  ValidationError,
+  RelayerError,
+} from "../../exceptions/base.exception.js";
 import {
   RelayerResponse,
   WithdrawalPayload,
@@ -21,7 +30,7 @@ import { Address } from "viem";
  * @returns {WithdrawalPayload} - The formatted withdrawal payload.
  */
 function relayRequestBodyToWithdrawalPayload(
-  body: ReturnType<typeof zRelayRequest['parse']>,
+  body: ReturnType<(typeof zRelayRequest)["parse"]>,
 ): WithdrawalPayload {
   return {
     ...body,
@@ -29,7 +38,7 @@ function relayRequestBodyToWithdrawalPayload(
       proof: {
         ...body.proof,
         protocol: "groth16",
-        curve: "bn128"
+        curve: "bn128",
       },
       publicSignals: body.publicSignals,
     },
@@ -38,12 +47,12 @@ function relayRequestBodyToWithdrawalPayload(
 
 /**
  * Checks if a chain ID is supported.
- * 
+ *
  * @param {number} chainId - The chain ID to check.
  * @returns {boolean} - Whether the chain is supported.
  */
 function isChainSupported(chainId: number): boolean {
-  return CONFIG.chains.some(chain => chain.chain_id === chainId);
+  return CONFIG.chains.some((chain) => chain.chain_id === chainId);
 }
 
 /**
@@ -54,23 +63,29 @@ function isChainSupported(chainId: number): boolean {
  * @throws {ValidationError} - If the input data is invalid.
  * @throws {ConfigError} - If the chain is not supported.
  */
-function parseWithdrawal(body: Request["body"]): { payload: WithdrawalPayload, chainId: number; } {
-
+function parseWithdrawal(body: Request["body"]): {
+  payload: WithdrawalPayload;
+  chainId: number;
+} {
   const { data, error, success } = zRelayRequest.safeParse(body);
 
   if (!success) {
-    throw ValidationError.invalidInput({ error, message: "Error parsing payload" });
+    throw ValidationError.invalidInput({
+      error,
+      message: "Error parsing payload",
+    });
   }
 
   const payload = relayRequestBodyToWithdrawalPayload(data);
 
   // Check if the chain is supported early
   if (!isChainSupported(data.chainId)) {
-    throw ValidationError.invalidInput({ message: `Chain with ID ${data.chainId} not supported.` });
+    throw ValidationError.invalidInput({
+      message: `Chain with ID ${data.chainId} not supported.`,
+    });
   }
 
   return { payload, chainId: data.chainId };
-
 }
 
 /**
@@ -92,12 +107,19 @@ export async function relayRequestHandler(
     const currentGasPrice = await web3Provider.getGasPrice(chainId);
 
     // XXX: Block extraGas for EXCEPTION_TOKENS
-    if (withdrawalPayload.feeCommitment?.extraGas && isExceptionToken(withdrawalPayload.feeCommitment?.asset)) {
-      throw RelayerError.assetNotSupported(`Extra gas feature not supported for ${withdrawalPayload.feeCommitment?.asset}`);
+    if (
+      withdrawalPayload.feeCommitment?.extraGas &&
+      isExceptionToken(withdrawalPayload.feeCommitment?.asset)
+    ) {
+      throw RelayerError.assetNotSupported(
+        `Extra gas feature not supported for ${withdrawalPayload.feeCommitment?.asset}`,
+      );
     }
 
     if (maxGasPrice !== undefined && currentGasPrice > maxGasPrice) {
-      throw ConfigError.maxGasPrice(`Current gas price ${currentGasPrice} is higher than max price ${maxGasPrice}`);
+      throw ConfigError.maxGasPrice(
+        `Current gas price ${currentGasPrice} is higher than max price ${maxGasPrice}`,
+      );
     }
 
     const requestResponse: RelayerResponse =
@@ -105,24 +127,20 @@ export async function relayRequestHandler(
 
     const response = new RequestMarshall(requestResponse);
 
-    const { recipient, relayFeeBPS } = decodeWithdrawalData(withdrawalPayload.withdrawal.data);
+    const { recipient, relayFeeBPS } = decodeWithdrawalData(
+      withdrawalPayload.withdrawal.data,
+    );
     const feeCommitment = withdrawalPayload.feeCommitment!;
     const feeBPS = getAssetConfig(chainId, feeCommitment.asset).fee_bps;
     if (relayFeeBPS >= feeBPS * 2n) {
-      logger.warn(`{"relay": {"message": "Warning, fee_bps of ${feeBPS} is greater than double of base_fee_bps (${feeBPS * 2n})"}}`);
+      logger.warn(
+        `{"relay": {"message": "Warning, fee_bps of ${feeBPS} is greater than double of base_fee_bps (${feeBPS * 2n})"}}`,
+      );
     }
     logger.info(`{"relayRequestBody":
-      ${serializeLog(
-        feeCommitment,
-        currentGasPrice,
-        recipient,
-        response
-      )}}`
-    );
+      ${serializeLog(feeCommitment, currentGasPrice, recipient, response)}}`);
 
-    res
-      .status(200)
-      .json(res.locals.marshalResponse(response));
+    res.status(200).json(res.locals.marshalResponse(response));
     next();
   } catch (error) {
     next(error);
@@ -130,17 +148,15 @@ export async function relayRequestHandler(
 }
 
 function serializeLog(
-  fee_commitment: FeeCommitment, 
-  gas_price: bigint, 
-  recieving_address: Address, 
-  tx_reciept: RequestMarshall
-  ): string {
-
+  fee_commitment: FeeCommitment,
+  gas_price: bigint,
+  recieving_address: Address,
+  tx_reciept: RequestMarshall,
+): string {
   return JSONStringifyBigInt({
     fee_commitment,
-    gas_price, 
-    recieving_address, 
-    tx_reciept
-  })
+    gas_price,
+    recieving_address,
+    tx_reciept,
+  });
 }
-

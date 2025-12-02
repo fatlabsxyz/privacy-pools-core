@@ -17,29 +17,34 @@ const app = express();
 const parseJsonMiddleware = bodyParser.json();
 
 // CORS config - allow all origins by default for development and testnet
-const isTestnetRelayer = process.env.NODE_ENV === 'production' && 
-  (process.env.RELAYER_HOST === 'testnet-relayer.privacypools.com' || 
-   process.env.HOST === 'testnet-relayer.privacypools.com');
+const isTestnetRelayer =
+  process.env.NODE_ENV === "production" &&
+  (process.env.RELAYER_HOST === "testnet-relayer.privacypools.com" ||
+    process.env.HOST === "testnet-relayer.privacypools.com");
 
 const shouldAllowAll = CORS_ALLOW_ALL || isTestnetRelayer;
 
 const corsOptions = {
-  origin: shouldAllowAll ? '*' : function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
-    // Allow requests without origin (like mobile apps) or from allowed domains
-    if (!origin || ALLOWED_DOMAINS.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      logger.warn('Request blocked by CORS middleware', { 
-        origin, 
-        allowedDomains: ALLOWED_DOMAINS 
-      });
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
+  origin: shouldAllowAll
+    ? "*"
+    : function (
+        origin: string | undefined,
+        callback: (err: Error | null, allow?: boolean) => void,
+      ) {
+        // Allow requests without origin (like mobile apps) or from allowed domains
+        if (!origin || ALLOWED_DOMAINS.indexOf(origin) !== -1) {
+          callback(null, true);
+        } else {
+          logger.warn("Request blocked by CORS middleware", {
+            origin,
+            allowedDomains: ALLOWED_DOMAINS,
+          });
+          callback(new Error("Not allowed by CORS"));
+        }
+      },
   credentials: true,
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
 };
-
 
 // Apply middleware and routes
 app.use(cors(corsOptions));

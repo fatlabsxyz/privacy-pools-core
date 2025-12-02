@@ -8,23 +8,23 @@ export abstract class RelayerMarshall {
 }
 
 export class DetailsMarshall extends RelayerMarshall {
-  constructor(private details: {
-    feeBPS: bigint,
-    feeReceiverAddress: Address,
-    chainId?: number,
-    assetAddress?: Address,
-    minWithdrawAmount?: bigint,
-    maxGasPrice?: bigint,
-  }) {
+  constructor(
+    private details: {
+      feeBPS: bigint;
+      feeReceiverAddress: Address;
+      chainId?: number;
+      assetAddress?: Address;
+      minWithdrawAmount?: bigint;
+      maxGasPrice?: bigint;
+    },
+  ) {
     super();
   }
   override toJSON(): object {
-
     let maxGasPrice: string | null;
     if (this.details.maxGasPrice !== undefined) {
       maxGasPrice = this.details.maxGasPrice.toString(10);
-    }
-    else {
+    } else {
       maxGasPrice = null;
     }
 
@@ -34,7 +34,7 @@ export class DetailsMarshall extends RelayerMarshall {
       chainId: this.details.chainId,
       assetAddress: this.details.assetAddress?.toString(),
       minWithdrawAmount: this.details.minWithdrawAmount?.toString(),
-      maxGasPrice
+      maxGasPrice,
     };
   }
 }
@@ -56,16 +56,18 @@ export class QuoteMarshall extends RelayerMarshall {
   addFeeCommitment(feeCommitment: FeeCommitment) {
     this.response.feeCommitment = {
       ...feeCommitment,
-      amount: feeCommitment.amount.toString()
+      amount: feeCommitment.amount.toString(),
     };
   }
 
   override toJSON(): object {
     const detail = Object.fromEntries(
-      Object.entries(this.response.detail)
-        .map(([k, v]) => {
-          return [k, v ? { gas: v.gas.toString(), eth: v.eth.toString() } : undefined];
-        })
+      Object.entries(this.response.detail).map(([k, v]) => {
+        return [
+          k,
+          v ? { gas: v.gas.toString(), eth: v.eth.toString() } : undefined,
+        ];
+      }),
     );
     return {
       baseFeeBPS: this.response.baseFeeBPS.toString(),

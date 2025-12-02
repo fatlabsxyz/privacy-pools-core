@@ -21,81 +21,28 @@ const logColors = {
 // Add colors to winston
 winston.addColors(logColors);
 
-// Define log format
+// Simple JSON format for all environments
 const logFormat = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
   winston.format.errors({ stack: true }),
-  winston.format.json(),
-  winston.format.prettyPrint()
+  winston.format.json()
 );
-
-// Define console format (for development)
-const consoleFormat = winston.format.combine(
-  winston.format.timestamp({ format: 'HH:mm:ss' }),
-  winston.format.colorize({ all: true }),
-  winston.format.printf(({ timestamp, level, message, ...meta }) => {
-    let metaStr = '';
-    if (Object.keys(meta).length > 0) {
-      metaStr = JSON.stringify(meta, null, 2);
-    }
-    return `${timestamp} [${level}]: ${message} ${metaStr}`;
-  })
-);
-
-// Determine environment
-const isProduction = process.env.NODE_ENV === 'production';
-const isDevelopment = process.env.NODE_ENV === 'development';
-
-// Create transports array
-const transports: winston.transport[] = [];
-
-// Console transport (always present, but with different formats)
-transports.push(
-  new winston.transports.Console({
-    level: isDevelopment ? 'debug' : 'info',
-    format: isDevelopment ? consoleFormat : logFormat,
-  })
-);
-
-// File transports for production
-if (isProduction) {
-  // Error log file
-  transports.push(
-    new winston.transports.File({
-      filename: 'logs/error.log',
-      level: 'error',
-      format: logFormat,
-    })
-  );
-
-  // Combined log file
-  transports.push(
-    new winston.transports.File({
-      filename: 'logs/combined.log',
-      format: logFormat,
-    })
-  );
-}
 
 // Create and configure the winston logger
 const logger = winston.createLogger({
-  level: isProduction ? 'info' : 'debug',
+  level: 'debug',
   levels: logLevels,
   format: logFormat,
   defaultMeta: {
     service: 'privacy-pools-relayer',
     version: process.env.npm_package_version || 'unknown',
   },
-  transports,
-  // Handle uncaught exceptions and rejections
-  exceptionHandlers: [
-    new winston.transports.Console({ format: consoleFormat }),
-    ...(isProduction ? [new winston.transports.File({ filename: 'logs/exceptions.log' })] : []),
-  ],
-  rejectionHandlers: [
-    new winston.transports.Console({ format: consoleFormat }),
-    ...(isProduction ? [new winston.transports.File({ filename: 'logs/rejections.log' })] : []),
-  ],
+  transports: [
+    new winston.transports.Console({
+      level: 'debug',
+      format: logFormat,
+    })
+  ]
 });
 
 // Add Google Cloud Logging support when GOOGLE_CLOUD_PROJECT is set

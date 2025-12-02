@@ -4,6 +4,7 @@ import { ConfigError, RelayerError } from "../exceptions/base.exception.js";
 import { zConfig } from "./schemas.js";
 import { AssetConfig, ChainConfig } from "./types.js";
 import { getAddress } from "viem";
+import { logger } from "../logger/index.js";
 
 /**
  * Reads the configuration file from the path specified in the CONFIG_PATH environment variable
@@ -15,7 +16,7 @@ import { getAddress } from "viem";
 function readConfigFile(): Record<string, unknown> {
   let configPathString = process.env["CONFIG_PATH"];
   if (!configPathString) {
-    console.warn("CONFIG_PATH is not set, using default path: ./config.json");
+    logger.warn("CONFIG_PATH is not set, using default path", { defaultPath: "./config.json" });
     configPathString = "./config.json";
   }
   if (!fs.existsSync(configPathString)) {
@@ -52,19 +53,19 @@ export function getChainConfig(chainId: number): ChainConfig {
 
   // Log warnings for implicit defaults
   if (!chainConfig.fee_receiver_address && CONFIG.defaults.fee_receiver_address) {
-    console.warn(`[CONFIG WARNING] Using default fee_receiver_address for chain ${chainId}`);
+    logger.warn('Using default fee_receiver_address for chain', { chainId });
   }
 
   if (!chainConfig.signer_private_key && CONFIG.defaults.signer_private_key) {
-    console.warn(`[CONFIG WARNING] Using default signer_private_key for chain ${chainId}`);
+    logger.warn('Using default signer_private_key for chain', { chainId });
   }
 
   if (!chainConfig.entrypoint_address && CONFIG.defaults.entrypoint_address) {
-    console.warn(`[CONFIG WARNING] Using default entrypoint_address for chain ${chainId}`);
+    logger.warn('Using default entrypoint_address for chain', { chainId });
   }
 
   if (!chainConfig.max_gas_price) {
-    console.warn(`[CONFIG WARNING] There's no max_gas_price set for chain ${chainId}`);
+    logger.warn('No max_gas_price set for chain', { chainId });
   }
 
   return chainConfig;

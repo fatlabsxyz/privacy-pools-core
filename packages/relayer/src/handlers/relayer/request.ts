@@ -109,15 +109,15 @@ export async function relayRequestHandler(
     const feeCommitment = withdrawalPayload.feeCommitment!;
     const feeBPS = getAssetConfig(chainId, feeCommitment.asset).fee_bps;
     if (relayFeeBPS >= feeBPS * 2n) {
-      logger.warn(`{fee_bps: ${feeBPS} is greater than 2*base_fee_bps: ${feeBPS * 2n}}`);
+      logger.warn(`{"relay": {"message": "Warning, fee_bps of ${feeBPS} is greater than double of base_fee_bps (${feeBPS * 2n})"}}`);
     }
-    logger.debug(
-      serializeLog(
+    logger.debug(`{"relayRequestBody":
+      ${serializeLog(
         feeCommitment,
         currentGasPrice,
         recipient,
         response
-      )
+      )}}`
     );
 
     res

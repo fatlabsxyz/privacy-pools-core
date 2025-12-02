@@ -30,6 +30,8 @@ export async function relayQuoteHandler(
   if (config === undefined)
     return next(QuoterError.assetNotSupported(`Asset ${asset} for chain ${chainId} is not supported`));
 
+  const baseFeeBPS = config.fee_bps!;
+
   if (isNative(asset)) {
     extraGas = false;
   }
@@ -42,7 +44,7 @@ export async function relayQuoteHandler(
   let quote: QuoteFee;
   try {
     quote = await quoteService.quoteFeeBPSNative({
-      chainId, amountIn, assetAddress: asset, baseFeeBPS: config.fee_bps, extraGas: extraGas
+      chainId, amountIn, assetAddress: asset, baseFeeBPS, extraGas: extraGas
     });
   } catch (e) {
     return next(e);
@@ -58,7 +60,7 @@ export async function relayQuoteHandler(
   };
 
   const quoteResponse = new QuoteMarshall({
-    baseFeeBPS: config.fee_bps,
+    baseFeeBPS,
     feeBPS,
     gasPrice,
     detail,
@@ -87,11 +89,12 @@ export async function relayQuoteHandler(
     const signedRelayerCommitment = await web3Provider.signRelayerCommitment(chainId, relayerCommitment);
     quoteResponse.addFeeCommitment({ expiration, asset, withdrawalData, signedRelayerCommitment, extraGas, amount: amountIn });
 
-    if (feeBPS >= config.fee_bps * 2n) {
-      logger.warn(`{fee_bps: ${feeBPS} is greater than 2*base_fee_bps: ${config.fee_bps * 2n}}`);
+    
+    if (feeBPS >= baseFeeBPS * 2n) {
+      logger.warn(`{quote: {"message": "fee_bps of ${feeBPS} is greater than double of base_fee_bps ( ${baseFeeBPS * 2n})"}}`);
     }
 
-    logger.debug(
+    logger.debug(`{quoteRequest: ${
       serializeLog(
         asset,
         gasPrice,
@@ -99,8 +102,8 @@ export async function relayQuoteHandler(
         quote.out!,
         detail,
         feeBPS,
-        config.fee_bps
-      )
+        baseFeeBPS
+      )}}`
     );
   }
 

@@ -8,6 +8,7 @@ import {
   RequestStatus,
   WithdrawalPayload,
 } from "../interfaces/relayer/request.js";
+import logger from "../logger/index.js";
 
 /**
  * Class representing an SQLite database for managing relayer requests.
@@ -63,10 +64,10 @@ CREATE TABLE IF NOT EXISTS requests (
       });
       await this.db.run(this.createTableRequest);
     } catch (error) {
-      console.log(error);
+      logger.debug(error);
     }
     this._initialized = true;
-    console.log("sqlite db initialized");
+    logger.debug("sqlite db initialized");
   }
 
   /**

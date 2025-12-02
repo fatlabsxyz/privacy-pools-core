@@ -8,6 +8,7 @@ import { QuoteMarshall } from "../../types.js";
 import { encodeWithdrawalData, isFeeReceiverSameAsSigner, isNative } from "../../utils.js";
 import { privateKeyToAccount } from "viem/accounts";
 import { QuoteFee } from "../../services/quote.service.js";
+import logger from "../../logger/index.js";
 
 // const TIME_20_SECS = 20 * 1000;
 const TIME_60_SECS = 60 * 1000;
@@ -48,6 +49,7 @@ export async function relayQuoteHandler(
   }
 
   const { feeBPS, gasPrice, extraGasFundAmount, relayTxCost, extraGasTxCost } = quote;
+
   const recipient = req.body.recipient ? getAddress(req.body.recipient.toString()) : undefined;
   const detail = {
     relayTxCost: { gas: relayTxCost, eth: relayTxCost * gasPrice },
@@ -84,6 +86,12 @@ export async function relayQuoteHandler(
     const relayerCommitment = { withdrawalData, expiration, asset, amount: amountIn, extraGas };
     const signedRelayerCommitment = await web3Provider.signRelayerCommitment(chainId, relayerCommitment);
     quoteResponse.addFeeCommitment({ expiration, asset, withdrawalData, signedRelayerCommitment, extraGas, amount: amountIn });
+
+    if (feeBPS >= config.fee_bps * 2n) {
+      logger.warn(`{fee_bps: ${feeBPS} is greater than 2*base_fee_bps: ${config.fee_bps * 2n}}`);
+    }
+
+    logger.debug(`{asset: ${asset}, gas_price: ${gasPrice}, value_in: ${amountIn}, value_out: ${quote.out!}, detail: ${JSON.stringify(detail)}, fee_bps: ${feeBPS}, base_fee_bps: ${config.fee_bps}}`);
   }
 
   res

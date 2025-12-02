@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS requests (
       });
       await this.db.run(this.createTableRequest);
     } catch (error) {
-      logger.debug(error);
+      logger.error(`{sqlite_init_error: ${error}}`);
     }
     this._initialized = true;
     logger.debug("sqlite db initialized");

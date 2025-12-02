@@ -111,7 +111,7 @@ export async function relayRequestHandler(
     if (relayFeeBPS >= feeBPS * 2n) {
       logger.warn(`{"relay": {"message": "Warning, fee_bps of ${feeBPS} is greater than double of base_fee_bps (${feeBPS * 2n})"}}`);
     }
-    logger.debug(`{"relayRequestBody":
+    logger.info(`{"relayRequestBody":
       ${serializeLog(
         feeCommitment,
         currentGasPrice,

@@ -94,7 +94,7 @@ export async function relayQuoteHandler(
       logger.warn(`{quote: {"message": "fee_bps of ${feeBPS} is greater than double of base_fee_bps ( ${baseFeeBPS * 2n})"}}`);
     }
 
-    logger.debug(`{quoteRequest: ${
+    logger.info(`{quoteRequest: ${
       serializeLog(
         asset,
         gasPrice,

@@ -28,9 +28,12 @@ const logFormat = winston.format.combine(
   winston.format.json()
 );
 
+// Get log level from environment variable, default to debug
+const logLevel = process.env.LOG_LEVEL || 'debug';
+
 // Create and configure the winston logger
 const logger = winston.createLogger({
-  level: 'debug',
+  level: logLevel,
   levels: logLevels,
   format: logFormat,
   defaultMeta: {
@@ -39,7 +42,7 @@ const logger = winston.createLogger({
   },
   transports: [
     new winston.transports.Console({
-      level: 'debug',
+      level: logLevel,
       format: logFormat,
     })
   ]

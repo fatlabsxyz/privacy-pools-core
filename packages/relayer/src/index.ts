@@ -1,7 +1,8 @@
 import { app } from "./app.js";
 import { db } from "./providers/db.provider.js";
-import { logger, logError } from "./logger/index.js";
+import { createModuleLogger } from "./logger/index.js";
 
+const logger = createModuleLogger(main);
 const port = 3000;
 
 async function main() {
@@ -17,6 +18,6 @@ async function main() {
 }
 
 main().catch((e) => {
-  logError(e as Error, { context: 'server_startup' });
+  logger.error(e, { context: 'server_startup' });
   process.exit(1);
 });

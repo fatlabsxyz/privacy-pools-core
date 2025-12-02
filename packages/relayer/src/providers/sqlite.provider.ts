@@ -8,7 +8,11 @@ import {
   RequestStatus,
   WithdrawalPayload,
 } from "../interfaces/relayer/request.js";
-import logger from "../logger/index.js";
+import { createModuleLogger } from "../logger/index.js";
+
+
+const logger = createModuleLogger(Sqlite);
+function Sqlite() {}; // XXX: Dummy function to instantiate the logger 
 
 /**
  * Class representing an SQLite database for managing relayer requests.
@@ -64,7 +68,7 @@ CREATE TABLE IF NOT EXISTS requests (
       });
       await this.db.run(this.createTableRequest);
     } catch (error) {
-      logger.error(`{sqlite_init_error: ${error}}`);
+      logger.error(`sqlite_init_error: ${error}`);
     }
     this._initialized = true;
     logger.debug("sqlite db initialized");

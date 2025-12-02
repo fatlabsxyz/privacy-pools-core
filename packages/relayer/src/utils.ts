@@ -26,13 +26,6 @@ interface WithdrawalData {
   relayFeeBPS: bigint;
 }
 
-export const JSONStringifyBigInt = (json_string: object) => {
-  return JSON.stringify(json_string, (_: string, v: unknown) => typeof v === 'bigint' ? v.toString() : v, 2);
-};
-
-// Alias for better naming
-export const serialize = JSONStringifyBigInt;
-
 export function decodeWithdrawalData(data: `0x${string}`): WithdrawalData {
   try {
     const [{ recipient, feeRecipient, relayFeeBPS }] = decodeAbiParameters(

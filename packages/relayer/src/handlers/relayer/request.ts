@@ -9,10 +9,10 @@ import { web3Provider } from "../../providers/index.js";
 import { zRelayRequest } from "../../schemes/relayer/request.scheme.js";
 import { privacyPoolRelayer } from "../../services/index.js";
 import { RequestMarshall } from "../../types.js";
-import logger from "../../logger/index.js";
-import { decodeWithdrawalData, JSONStringifyBigInt } from "../../utils.js";
-import { FeeCommitment } from "../../interfaces/relayer/common.js";
-import { Address } from "viem";
+import { createModuleLogger } from "../../logger/index.js";
+import { decodeWithdrawalData } from "../../utils.js";
+
+const logger = createModuleLogger(relayRequestHandler);
 
 /**
  * Converts a RelayRequestBody into a WithdrawalPayload.
@@ -107,18 +107,24 @@ export async function relayRequestHandler(
 
     const { recipient, relayFeeBPS } = decodeWithdrawalData(withdrawalPayload.withdrawal.data);
     const feeCommitment = withdrawalPayload.feeCommitment!;
-    const feeBPS = getAssetConfig(chainId, feeCommitment.asset).fee_bps;
-    if (relayFeeBPS >= feeBPS * 2n) {
-      logger.warn(`{"relay": {"message": "Warning, fee_bps of ${feeBPS} is greater than double of base_fee_bps (${feeBPS * 2n})"}}`);
+    const baseFeeBPS = getAssetConfig(chainId, feeCommitment.asset).fee_bps;
+
+    const logPayload = {
+      chain_id: chainId,
+      fee_commitment: feeCommitment,
+      gas_price: currentGasPrice, 
+      recieving_address: recipient, 
+      tx_reciept: response
     }
-    logger.info(`{"relayRequestBody":
-      ${serializeLog(
-        feeCommitment,
-        currentGasPrice,
-        recipient,
-        response
-      )}}`
-    );
+
+    logger.info("Request generated", logPayload); 
+
+    if (relayFeeBPS >= baseFeeBPS * 2n) {
+      logger.warn(
+        "Generated quote might be too high for requested amount",
+        logPayload
+      );
+    }
 
     res
       .status(200)
@@ -129,18 +135,4 @@ export async function relayRequestHandler(
   }
 }
 
-function serializeLog(
-  fee_commitment: FeeCommitment, 
-  gas_price: bigint, 
-  recieving_address: Address, 
-  tx_reciept: RequestMarshall
-  ): string {
-
-  return JSONStringifyBigInt({
-    fee_commitment,
-    gas_price, 
-    recieving_address, 
-    tx_reciept
-  })
-}
 

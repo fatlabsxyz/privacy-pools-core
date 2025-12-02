@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from "express";
-import { Address, getAddress } from "viem";
+import { getAddress } from "viem";
 import {
   getAssetConfig,
   getFeeReceiverAddress,
@@ -13,16 +13,16 @@ import { QuoteMarshall } from "../../types.js";
 import {
   encodeWithdrawalData,
   isFeeReceiverSameAsSigner,
-  isNative,
-  JSONStringifyBigInt,
+  isNative
 } from "../../utils.js";
 import { privateKeyToAccount } from "viem/accounts";
 import { QuoteFee } from "../../services/quote.service.js";
-import logger from "../../logger/index.js";
+import { createModuleLogger } from "../../logger/index.js";
 
 // const TIME_20_SECS = 20 * 1000;
 const TIME_60_SECS = 60 * 1000;
 
+const logger = createModuleLogger(relayQuoteHandler);
 const EXPIRATION_TIME = TIME_60_SECS;
 
 export async function relayQuoteHandler(
@@ -131,6 +131,7 @@ export async function relayQuoteHandler(
       chainId,
       relayerCommitment,
     );
+
     quoteResponse.addFeeCommitment({
       expiration,
       asset,
@@ -140,47 +141,28 @@ export async function relayQuoteHandler(
       amount: amountIn,
     });
 
-    const severity = feeBPS >= baseFeeBPS * 2n ? 
-      (logger.warn(JSON.stringify({ message:
-        "fee_bps of ${feeBPS} is greater than double of base_fee_bps ( ${baseFeeBPS * 2n})",
-      }), {origin: "relayQuoteHandler"}),
-      "warn"):
-      "info";
-    
-    logger[severity](
-      JSON.stringify({
-        quoteRequest: serializeLog(
-          asset,
-          gasPrice,
-          amountIn,
-          quote.out!,
-          detail,
-          feeBPS,
-          baseFeeBPS,
-        ),
-    }), {origin: "relayQuoteHandler"}
-  ); 
+    const logPayload = {
+      quote_request: { 
+        chain_id: chainId,
+        asset,
+        gas_price: gasPrice,
+        value_in: amountIn,
+        value_out: quote.out!,
+        detail,
+        fee_bps: feeBPS,
+        base_fee_bps: baseFeeBPS
+      },
+    };
 
+    logger.info("Quote generated", logPayload); 
+
+    if (feeBPS >= baseFeeBPS * 2n) {
+      logger.warn(
+        "Generated quote might be too high for requested amount",
+        logPayload
+      );
+    }
 
   res.status(200).json(res.locals.marshalResponse(quoteResponse));
-}
-
-function serializeLog(
-  asset: Address,
-  gas_price: bigint,
-  value_in: bigint,
-  value_out: bigint,
-  detail: object,
-  fee_bps: bigint,
-  base_fee_bps: bigint,
-): string {
-  return JSONStringifyBigInt({
-    asset,
-    gas_price,
-    value_in,
-    value_out,
-    detail,
-    fee_bps,
-    base_fee_bps,
-  });
+  }
 }

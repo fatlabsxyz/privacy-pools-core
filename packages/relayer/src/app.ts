@@ -8,7 +8,9 @@ import {
 } from "./middlewares/index.js";
 import { relayerRouter } from "./routes/index.js";
 import { CORS_ALLOW_ALL, ALLOWED_DOMAINS } from "./config/index.js";
-import { logger } from "./logger/index.js";
+import { createModuleLogger } from "./logger/index.js";
+
+const logger = createModuleLogger(express);
 
 // Initialize the express app
 const app = express();

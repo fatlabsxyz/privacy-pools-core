@@ -4,7 +4,11 @@ import { ConfigError, RelayerError } from "../exceptions/base.exception.js";
 import { zConfig } from "./schemas.js";
 import { AssetConfig, ChainConfig } from "./types.js";
 import { getAddress } from "viem";
-import { logger } from "../logger/index.js";
+import { createModuleLogger } from "../logger/index.js";
+
+const logger = createModuleLogger(Config);
+
+function Config() {}; // XXX: Dummy function to instantiate the logger 
 
 /**
  * Reads the configuration file from the path specified in the CONFIG_PATH environment variable

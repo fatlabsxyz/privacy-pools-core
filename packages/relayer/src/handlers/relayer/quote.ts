@@ -79,6 +79,7 @@ export async function relayQuoteHandler(
     extraGasTxCost 
   } = quote;
 
+
   const recipient = req.body.recipient
     ? getAddress(req.body.recipient.toString())
     : undefined;
@@ -141,6 +142,8 @@ export async function relayQuoteHandler(
       amount: amountIn,
     });
 
+
+  }
     const logPayload = {
       quote_request: { 
         chain_id: chainId,
@@ -163,6 +166,5 @@ export async function relayQuoteHandler(
       );
     }
 
-  res.status(200).json(res.locals.marshalResponse(quoteResponse));
-  }
+  res.status(200).json(res.locals.marshalResponse(quoteResponse)); 
 }

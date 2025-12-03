@@ -17,7 +17,7 @@
             },
             "supported_assets": [
                 {
-                    "asset_address": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+                    "asset_address": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
                     "asset_name": "Test Token",
                     "fee_bps": "1000",
                     "min_withdraw_amount": "100"

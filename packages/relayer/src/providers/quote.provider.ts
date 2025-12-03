@@ -1,7 +1,11 @@
 import { Address, getAddress } from "viem";
-import { uniswapProvider } from "./index.js";
+import { uniswapProvider, cowProvider } from "./index.js";
 import { FRAXUSD_ADDRESS, WOETH_ADDRESS } from "../config/index.js";
 import { ChainId } from "../types.js";
+import { createModuleLogger } from "../logger/index.js";
+
+function Quote() {};
+const logger = createModuleLogger(Quote);
 
 const USDC_ADDRESS = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 
@@ -36,8 +40,7 @@ export class QuoteProvider {
       return this.quoteNativeTokenInWoeth(chainId, addressIn, amountIn);
     }
 
-    const { in: in_, out, path } = (await uniswapProvider.quoteNativeToken(chainId, addressIn, amountIn))!;
-    return { num: out.amount, den: in_.amount, path };
+    return await cowProvider.quoteNativeToken(chainId, addressIn, amountIn);
   }
 
 }

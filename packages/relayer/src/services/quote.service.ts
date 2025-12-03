@@ -45,6 +45,7 @@ export class QuoteService {
 
   async quoteFeeBPSNative(quoteParams: QuoteFeeBPSParams): Promise<QuoteFee> {
     const { chainId, assetAddress, amountIn, baseFeeBPS, extraGas } = quoteParams;
+
     const gasPrice = await web3Provider.getGasPrice(chainId);
 
     const EXTRA_GAS_AMOUNT = this.extraGasTxCost + this.extraGasFundAmount;

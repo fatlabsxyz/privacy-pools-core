@@ -1,5 +1,5 @@
 import { Address } from "viem";
-import { TradingSdk, SupportedChainId, OrderKind, PrivateKey } from "@cowprotocol/cow-sdk";
+import { TradingSdk, SupportedChainId, OrderKind } from "@cowprotocol/cow-sdk";
 import { ViemAdapter } from "@cowprotocol/sdk-viem-adapter";
 import { createModuleLogger } from "../../logger/index.js";
 import { web3Provider } from "../index.js";
@@ -18,7 +18,6 @@ export class CowProvider {
   private sdk: TradingSdk;
 
   constructor() {
-    // Setup will happen per request to use correct chain
     this.sdk = new TradingSdk({
       chainId: SupportedChainId.MAINNET,
       appCode: 'privacy-pools-relayer'
@@ -26,7 +25,6 @@ export class CowProvider {
   }
 
   private createAdapter(chainId: number) {
-    // Create proper viem adapter for the specific chain
     const viemClient = web3Provider.client(chainId);
 
     const adapter = new ViemAdapter({
@@ -50,10 +48,8 @@ export class CowProvider {
     });
 
     try {
-      // Create adapter for the correct chain
       const adapter = this.createAdapter(chainId);
       
-      // Update SDK for the correct chain with adapter
       this.sdk = new TradingSdk({
         chainId: supportedChainId,
         appCode: 'privacy-pools-relayer'
@@ -101,22 +97,22 @@ export class CowProvider {
       case 11155111:
         return SupportedChainId.SEPOLIA;
       default:
-        throw new Error(`Unsupported chainId ${chainId}. Only mainnet (1) and sepolia (11155111) are supported.`);
+        throw new Error(`Unsupported chainId ${chainId}`);
     }
   }
 
   private getTokenDecimals(address: Address): number {
     const addr = address.toLowerCase();
     
-    // Common token decimals mapping
     const tokenDecimals: Record<string, number> = {
       '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': 6,  // USDC
       '0xdac17f958d2ee523a2206206994597c13d831ec7': 6,  // USDT  
       '0x6b175474e89094c44da98b954eedeac495271d0f': 18, // DAI
       '0xa1fdf8c4894439cc6ff5cdf354d234052e01aa59': 18, // FRAX USD
-      '0xd4ca8b6d7f5a5c8b7e8c7b8f3f7b8f3f7b8f3f7b': 18  // WOETH (placeholder)
+      '0xd4ca8b6d7f5a5c8b7e8c7b8f3f7b8f3f7b8f3f7b': 18  // WOETH 
+      // TODO add all the other ones or figure out a better way to do this
     };
 
-    return tokenDecimals[addr] || 18; // Default to 18 decimals for unknown tokens
+    return tokenDecimals[addr] || 18; // default to 18 decimals for unknown tokens
   }
 }

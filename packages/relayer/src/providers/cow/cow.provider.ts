@@ -7,10 +7,6 @@ import { zHex } from "../../schemes/relayer/request.scheme.js";
 function Cow() {};
 const logger = createModuleLogger(Cow);
 
-const CowNativePriceResponse = z.object({
-  price: z.number()
-});
-
 const CowNativePriceQuoteResponse = z.object({
   price: z.number().optional(), 
   quote: z.object({
@@ -112,8 +108,8 @@ export class CowProvider {
         path: ["cow_protocol"]
       }; 
     } catch(error) {
-      logger.error("CoW API request failed MISTERIOUSLY")
-      throw new Error("CoW API request failed MISTERIOUSLY");
+      logger.error(`CoW API request failed: ${error}`)
+      throw new Error(`CoW API request failed: ${error}`);
     } 
   }
 }

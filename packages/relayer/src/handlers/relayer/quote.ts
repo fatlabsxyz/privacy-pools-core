@@ -73,7 +73,6 @@ export async function relayQuoteHandler(
     extraGasTxCost
   } = quote;
 
-
   const recipient = req.body.recipient
     ? getAddress(req.body.recipient.toString())
     : undefined;

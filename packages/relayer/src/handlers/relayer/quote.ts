@@ -62,6 +62,7 @@ export async function relayQuoteHandler(
       extraGas,
     });
   } catch (e) {
+    logger.error('Quote service error', { error: e, chainId, asset, amountIn: amountIn.toString() });
     return next(e);
   }
 

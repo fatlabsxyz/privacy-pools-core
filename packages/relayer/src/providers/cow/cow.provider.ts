@@ -1,9 +1,11 @@
-import { Address } from "viem";
-import { TradingSdk, SupportedChainId, OrderKind } from "@cowprotocol/cow-sdk";
+import { Address } from "@0xbow/privacy-pools-core-sdk";
+import { TradingSdk, SupportedChainId, OrderKind, QuoteAndPost, OrderBookApi, EnrichedOrder } from "@cowprotocol/cow-sdk";
 import { ViemAdapter } from "@cowprotocol/sdk-viem-adapter";
 import { createModuleLogger } from "../../logger/index.js";
 import { web3Provider } from "../index.js";
 import { getSignerPrivateKey } from "../../config/index.js";
+import { Quote, QuoteInNativeTokenParams, SwapProvider, SwapWithRefundParams } from "../swap.provider.interface.js";
+import { Hex } from "viem";
 
 function Cow() {};
 const logger = createModuleLogger(Cow);
@@ -14,14 +16,12 @@ export type CowQuote = {
   path: (string | number)[];
 };
 
-export class CowProvider {
-  private sdk: TradingSdk;
+export class CowProvider implements SwapProvider {
+  private sdk: Map<SupportedChainId, TradingSdk>;
+  private ethDecimals: number = 18;
 
   constructor() {
-    this.sdk = new TradingSdk({
-      chainId: SupportedChainId.MAINNET,
-      appCode: 'privacy-pools-relayer'
-    });
+    this.sdk = new Map();
   }
 
   private createAdapter(chainId: number) {
@@ -36,33 +36,12 @@ export class CowProvider {
     return adapter; 
   }
 
-  async quoteNativeToken(chainId: number, address: Address, amount: bigint): Promise<CowQuote> {
-    const supportedChainId = this.getSupportedChainId(chainId);
-    const sellTokenDecimals = this.getTokenDecimals(address);
-    
-    logger.debug('Fetching CoW Protocol native price', { 
-      chainId: supportedChainId,
-      address,
-      amount: amount.toString(),
-      sellTokenDecimals
-    });
-
+  async quoteNativeToken({chainId, tokenAddress, amount}: QuoteInNativeTokenParams): Promise<Quote> {
     try {
-      const adapter = this.createAdapter(chainId);
-      
-      this.sdk = new TradingSdk({
-        chainId: supportedChainId,
-        appCode: 'privacy-pools-relayer'
-      }, {}, adapter);
+      this.createSdkForChain(chainId)
 
-      const { quoteResults } = await this.sdk.getQuote({
-        kind: OrderKind.SELL,
-        sellToken: address,
-        buyToken: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" as Address,
-        amount: amount.toString(),
-        sellTokenDecimals,
-        buyTokenDecimals: 18
-      });
+
+      const { quoteResults } = await this.generateEthQuote(chainId, tokenAddress, amount);
 
       logger.debug('CoW SDK quote response', { quoteResults });
 
@@ -80,14 +59,86 @@ export class CowProvider {
       });
 
       return {
-        num: ethAmount,
-        den: tokenAmount,
-        path: ["cow_protocol"]
-      }; 
+        valueIn: { amount: tokenAmount, decimals: this.getTokenDecimals(tokenAddress)},
+        valueOut: { amount: ethAmount, decimals: this.ethDecimals},
+        path: ["cow_protocol"] // TODO this is the optional multihop path with fees and stuff
+        }; 
     } catch(error) {
       logger.error(`CoW SDK request failed: ${error}`);
       throw new Error(`CoW SDK request failed: ${error}`);
     } 
+  }
+
+
+  async swapExactInputForWeth(params: SwapWithRefundParams): Promise<Hex>  {
+    const { chainId, tokenIn, refundAmount } = params;
+    const orderBookApi = this.getOrderBookApi(chainId);
+
+    // get quote in native token
+    const quote = await this.generateEthQuote(chainId, tokenIn, refundAmount); // TODO is refund amount ok?
+    // call for the swap //TODO this swaps the full amount
+    const {orderId} = await quote.postSwapOrderFromQuote();
+    // wait for swap to complete
+    const order = await this.waitForOrderExecution(orderId, orderBookApi); 
+
+    const trades = await orderBookApi.getTrades({ orderUid: orderId });
+
+    if (trades.length > 0) {
+      const txHash = trades[0]!.txHash;
+      logger.info('Transaction hash:', txHash)
+      logger.info('Etherscan:', `https://etherscan.io/tx/${txHash}`)
+      return txHash as Hex;
+    } else {
+      logger.error("could not get tx hash from swap order", order)
+      throw Error("could not get txhash from swap")
+    }
+  }
+
+  getOrderBookApi(chainId: SupportedChainId) {
+    return new OrderBookApi({ chainId });
+  }
+
+  async waitForOrderExecution(orderId: string, orderBookApi: OrderBookApi,timeoutMs = 300000): Promise<EnrichedOrder> { 
+    const startTime = Date.now()
+    
+    while (Date.now() - startTime < timeoutMs) {
+      const order = await orderBookApi.getOrder(orderId)
+      
+      if (order.status === 'fulfilled') {
+        console.log('✅ Order executed!')
+        return order
+      }
+      
+      if (order.status === 'cancelled' || order.status === 'expired') {
+        throw new Error(`Order ${order.status}`)
+      }
+      
+      console.log(`Order status: ${order.status}, waiting...`)
+      await new Promise(resolve => setTimeout(resolve, 5000)) // Check every 5s
+    }
+    
+    throw new Error('Order execution timeout')
+  }
+
+  private async generateEthQuote(chainId: SupportedChainId, token: Address,  amount: bigint): Promise<QuoteAndPost> {   
+    const sellTokenDecimals = this.getTokenDecimals(token);
+    logger.debug('Fetching CoW Protocol native price', { 
+      chainId,
+      address: token,
+      amount: amount.toString(),
+      sellTokenDecimals
+    });
+
+    const sdk = this.sdk.get(chainId)!; 
+
+    return sdk.getQuote({
+        kind: OrderKind.SELL,
+        sellToken: token,
+        buyToken: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" as Address,
+        amount: amount.toString(),
+        sellTokenDecimals,
+        buyTokenDecimals: this.ethDecimals
+    });
   }
 
   private getSupportedChainId(chainId: number): SupportedChainId {
@@ -114,5 +165,24 @@ export class CowProvider {
     };
 
     return tokenDecimals[addr] || 18; // default to 18 decimals for unknown tokens
+  }
+
+  private createSdkForChain(chainId: number) {
+    const adapter = this.createAdapter(chainId);
+    const supportedChainId = this.getSupportedChainId(chainId);
+    
+    if (this.sdk.get(supportedChainId) === undefined) {
+      this.sdk.set(
+        supportedChainId, 
+        new TradingSdk(
+        {
+          chainId: supportedChainId,
+          appCode: 'privacy-pools-relayer'
+        }, 
+        {}, 
+        adapter
+        )
+      )
+    } 
   }
 }

@@ -21,10 +21,10 @@ export class QuoteProvider {
     const adjustedAmount = amountIn / DECIMAL_DIFFERENCE;
 
     // Get the USDC quote - this returns how much ETH we need for X USDC
-    const { out, path } = (await uniswapProvider.quoteNativeToken(chainId, USDC_ADDRESS as Address, adjustedAmount))!;
+    const { valueOut, path } = (await uniswapProvider.quoteNativeToken({chainId, tokenAddress: USDC_ADDRESS as Address, amount: adjustedAmount}))!;
 
     // So num = ETH amount, den = FRXUSD amount in 18 decimals
-    return { num: out.amount, den: amountIn, path };
+    return { num: valueOut.amount, den: amountIn, path };
   }
 
   private quoteNativeTokenInWoeth(chainId: ChainId, addressIn: string, amountIn: bigint): { num: bigint; den: bigint; path: (string | number)[]; } | PromiseLike<{ num: bigint; den: bigint; path: (string | number)[]; }> {
@@ -40,8 +40,9 @@ export class QuoteProvider {
       return this.quoteNativeTokenInWoeth(chainId, addressIn, amountIn);
     }
 
-    // return await uniswapProvider.quoteNativeToken(chainId, addressIn, amountIn);
-    return await cowProvider.quoteNativeToken(chainId, addressIn, amountIn);
+    // const quote = await uniswapProvider.quoteNativeToken(chainId, addressIn, amountIn);
+    const quote = await cowProvider.quoteNativeToken({chainId, tokenAddress: addressIn, amount: amountIn});
+    return {num: quote.valueOut.amount, den: quote.valueIn.amount, path: quote.path}  // TODO not sure if this is correct
   }
 
 }

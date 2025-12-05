@@ -8,7 +8,7 @@ import { createModuleLogger } from "../logger/index.js";
 
 const logger = createModuleLogger(Config);
 
-function Config() {}; // XXX: Dummy function to instantiate the logger 
+function Config() { }; // XXX: Dummy function to instantiate the logger 
 
 /**
  * Reads the configuration file from the path specified in the CONFIG_PATH environment variable
@@ -57,19 +57,19 @@ export function getChainConfig(chainId: number): ChainConfig {
 
   // Log warnings for implicit defaults
   if (!chainConfig.fee_receiver_address && CONFIG.defaults.fee_receiver_address) {
-    logger.warn(`Using default fee_receiver_address for chain id: ${chainId}`);
+    logger.warn(`Using default fee_receiver_address for chain id: ${chainId}`, { chainId });
   }
 
   if (!chainConfig.signer_private_key && CONFIG.defaults.signer_private_key) {
-    logger.warn(`Using default signer_private_key for chain id: ${chainId}`);
+    logger.warn(`Using default signer_private_key for chain id: ${chainId}`, { chainId });
   }
 
   if (!chainConfig.entrypoint_address && CONFIG.defaults.entrypoint_address) {
-    logger.warn(`Using default entrypoint_address for chain id: ${chainId}`);
+    logger.warn(`Using default entrypoint_address for chain id: ${chainId}`, { chainId });
   }
 
   if (!chainConfig.max_gas_price) {
-    logger.warn(`No max_gas_price set for chain id: ${chainId}`);
+    logger.warn(`No max_gas_price set for chain id: ${chainId}`, { chainId });
   }
 
   return chainConfig;

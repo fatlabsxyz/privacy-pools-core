@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { z } from "zod";
 import { ConfigError, RelayerError } from "../exceptions/base.exception.js";
 import { zConfig } from "./schemas.js";
 import { AssetConfig, ChainConfig } from "./types.js";
@@ -32,7 +33,39 @@ function readConfigFile(): Record<string, unknown> {
 }
 
 // Parse the configuration file
-const config = zConfig.parse(readConfigFile());
+const config = zConfig
+  .refine(c => { warnings(c); return true; })
+  .parse(readConfigFile());
+
+function warnings(config: z.infer<typeof zConfig>) {
+  for (const chainConfig of config.chains) {
+    const { chain_id: chainId } = chainConfig;
+
+    // Log warnings for implicit defaults
+    if (!chainConfig.fee_receiver_address && config.defaults.fee_receiver_address) {
+      logger.warn(`Using default fee_receiver_address for chain id: ${chainId}`, { chainId });
+    }
+
+    if (!chainConfig.signer_private_key && config.defaults.signer_private_key) {
+      logger.warn(`Using default signer_private_key for chain id: ${chainId}`, { chainId });
+    }
+
+    if (!chainConfig.entrypoint_address && config.defaults.entrypoint_address) {
+      logger.warn(`Using default entrypoint_address for chain id: ${chainId}`, { chainId });
+    }
+
+    if (!chainConfig.max_gas_price) {
+      logger.warn(`No max_gas_price set for chain id: ${chainId}`, { chainId });
+    }
+
+    const { signer_private_key, ...publicConfig } = chainConfig;  // eslint-disable-line @typescript-eslint/no-unused-vars
+    logger.debug(`Resolved config for ${chainId}`, {
+      ...publicConfig,
+      fee_receiver_address: config.defaults.fee_receiver_address,
+      entrypoint_address: config.defaults.entrypoint_address,
+    });
+  }
+}
 
 // Export the configuration
 export const CONFIG = config;
@@ -151,3 +184,4 @@ export function isExceptionToken(asset: string): boolean {
 
 // Re-export types
 export * from "./types.js";
+

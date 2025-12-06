@@ -37,11 +37,9 @@ class ConfigReader {
 
   async parseConfig(): Promise<RawConfig> {
     const rawConfig = await this.readConfig();
-
     const config = zRawConfig
       .refine(c => { warnings(c); return true; })
       .parse(rawConfig);
-
     return config;
   }
 
@@ -87,8 +85,7 @@ class ChainConfig extends ConfigReader {
    * @throws {ConfigError} If the configuration is not initialized
    */
   async feeReceiverAddress(): Promise<Address> {
-    const cr = new ConfigReader(this.filePath);
-    const config = await cr.parseConfig();
+    const config = await this.parseConfig();
 
     const defaultsFeeRecieverAddress = config.defaults?.fee_receiver_address;
     const configFeeRecieverAddress = config.chains[this.chainId]?.fee_receiver_address;
@@ -154,15 +151,10 @@ class ChainConfig extends ConfigReader {
    * @returns {Address} The entrypoint address
    */
   async entrypointAddress(): Promise<Address> {
-    const cr = new ConfigReader(this.filePath);
-    const config = await cr.parseConfig();
-    const entrypoint_address = config.chains[this.chainId]?.entrypoint_address!;
-    const def = config.defaults!;
-
-    const entrypointAddress = entrypoint_address ?? def.entrypoint_address;
-
-
-    if (!entrypointAddress) {
+    const chainConfig = await this.config();
+    const config = await this.parseConfig();
+    const entrypointAddress = chainConfig.entrypoint_address ?? config.defaults?.entrypoint_address;
+    if (entrypointAddress === undefined) {
       throw ConfigError.default(`entrypoint_address for chain_id: ${this.chainId} not found`);
     }
     return entrypointAddress;
@@ -303,7 +295,7 @@ export class RelayerConfig {
 
     const serializedChain = JSON.parse(JSONStringifyBigInt(updatedChain));
     const validatedChain = zRawChainConfig.parse(serializedChain);
-    result.chains[chainIndex] = validatedChain as any; // TODO SORRY BEZZE
+    result.chains[chainIndex] = validatedChain;
 
     const serializedConfig = JSON.parse(JSONStringifyBigInt(result));
     const newConfig = zRawConfig.parse(serializedConfig);
@@ -437,31 +429,39 @@ export class RelayerConfig {
     });
   }
 
-  private mergeConfig(existing: RawConfig, updates: UpdateConfigBody): RawConfig {
-    logger.info("STARTING MERGE CONFIG");
-    if (!updates.chain_id) {
+  private mergeConfig(existing: RawConfig, updateBody: UpdateConfigBody): RawConfig {
+
+    const { chain_id, ...updates } = updateBody;
+
+    logger.debug(`merging config for chain_id ${updateBody.chain_id}`, { chain_id });
+
+    if (!chain_id) {
       throw new ConfigError("chain_id is required for config updates");
     }
 
     const result = { ...existing };
-    const chainIndex = result.chains.findIndex(chain => chain.chain_id === updates.chain_id);
+    const chainIndex = result.chains.findIndex(chain => chain.chain_id === chain_id);
 
     if (chainIndex === -1) {
-      throw new ConfigError(`Chain with ID ${updates.chain_id} not found in configuration`);
+      throw new ConfigError(`Chain with ID ${chain_id} not found in configuration`);
     }
 
-    const existingChain = result.chains[chainIndex];
-    const updatedChain = { ...existingChain };
+    const updatedChain = { ...result.chains[chainIndex] };
 
-    for (const [key, value] of Object.entries(updates)) {
-      if (value === undefined) continue;
+    const keys = Object.keys(updates) as (keyof typeof updates)[];
 
-      if (key === 'supported_assets' && Array.isArray(value)) {
+    for (const key of keys) {
+
+      const value = updates[key];
+      if (value === undefined)
+        continue;
+
+      if (key === 'supported_assets') {
+        const value = updates[key]!; // we just asserted
+
         // merge assets by asset_address, replacing existing values or adding new assets
-        const existingAssets = existingChain!.supported_assets || [];
-        const updatedAssets = [...existingAssets];
-
-        (value as AssetConfig[]).forEach(newAsset => {
+        const updatedAssets = updatedChain.supported_assets ? [...updatedChain.supported_assets] : [];
+        value.forEach(newAsset => {
           const existingIndex = updatedAssets.findIndex(
             asset => asset.asset_address === newAsset.asset_address
           );
@@ -471,18 +471,16 @@ export class RelayerConfig {
             updatedAssets.push(newAsset);
           }
         });
-
         updatedChain.supported_assets = updatedAssets;
-      } else if (key !== 'chain_id') {
-        (updatedChain as any)[key] = value;
       }
+
     }
 
-    logger.info("PARSING RAW CONFING");
+    logger.debug("parsing updated config", { ...updateBody });
     const serializedChain = JSON.parse(JSONStringifyBigInt(updatedChain));
     const validatedChain = zRawChainConfig.parse(serializedChain);
     result.chains[chainIndex] = validatedChain;
-    logger.info("ENDING MERGE CONFIG");
+    logger.info("config successfully updated", { ...updateBody });
 
     return result;
   }

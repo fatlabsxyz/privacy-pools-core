@@ -1,4 +1,4 @@
-import { NextFunction, Request, Response } from "express";
+import { NextFunction, Response } from "express";
 import { isExceptionToken, RelayerConfig } from "../../config/index.js";
 import { ConfigError, RelayerError, ValidationError } from "../../exceptions/base.exception.js";
 import {

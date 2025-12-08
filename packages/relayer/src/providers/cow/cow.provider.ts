@@ -3,9 +3,10 @@ import { TradingSdk, SupportedChainId, OrderKind, QuoteAndPost, OrderBookApi, En
 import { ViemAdapter } from "@cowprotocol/sdk-viem-adapter";
 import { createModuleLogger } from "../../logger/index.js";
 import { web3Provider } from "../index.js";
-import { getSignerPrivateKey } from "../../config/index.js";
 import { Quote, QuoteInNativeTokenParams, SwapProvider, SwapWithRefundParams } from "../swap.provider.interface.js";
 import { Hex } from "viem";
+import { ChainId } from "../../types.js";
+import { RelayerConfig } from "../../config/config.js";
 
 function Cow() {};
 const logger = createModuleLogger(Cow);
@@ -24,14 +25,16 @@ export class CowProvider implements SwapProvider {
     this.sdk = new Map();
   }
 
-  private createAdapter(chainId: number) {
-    const viemClient = web3Provider.client(chainId);
+  private async createAdapter(chainId: ChainId) {
+    const viemClient = await web3Provider.client(chainId);
 
     const adapter = new ViemAdapter({
       provider: viemClient
     });
-    
-    adapter.setSigner(getSignerPrivateKey(chainId));
+    const config = new RelayerConfig().chain(chainId);
+    const pkey = await config.signerPrivateKey();
+
+    adapter.setSigner(pkey);
     
     return adapter; 
   }
@@ -94,8 +97,9 @@ export class CowProvider implements SwapProvider {
     }
   }
 
-  getOrderBookApi(chainId: SupportedChainId) {
-    return new OrderBookApi({ chainId });
+  getOrderBookApi(chainId: ChainId) {
+    const supportedChainId = this.getSupportedChainId(chainId);
+    return new OrderBookApi({ chainId: supportedChainId });
   }
 
   async waitForOrderExecution(orderId: string, orderBookApi: OrderBookApi,timeoutMs = 300000): Promise<EnrichedOrder> { 
@@ -141,7 +145,7 @@ export class CowProvider implements SwapProvider {
     });
   }
 
-  private getSupportedChainId(chainId: number): SupportedChainId {
+  private getSupportedChainId(chainId: ChainId): SupportedChainId {
     switch (chainId) {
       case 1:
         return SupportedChainId.MAINNET;
@@ -167,8 +171,8 @@ export class CowProvider implements SwapProvider {
     return tokenDecimals[addr] || 18; // default to 18 decimals for unknown tokens
   }
 
-  private createSdkForChain(chainId: number) {
-    const adapter = this.createAdapter(chainId);
+  private async createSdkForChain(chainId: ChainId) {
+    const adapter = await this.createAdapter(chainId);
     const supportedChainId = this.getSupportedChainId(chainId);
     
     if (this.sdk.get(supportedChainId) === undefined) {
@@ -186,3 +190,4 @@ export class CowProvider implements SwapProvider {
     } 
   }
 }
+

@@ -1,5 +1,6 @@
 import { Address } from "@0xbow/privacy-pools-core-sdk";
 import { Hex } from "viem";
+import { ChainId } from "../types.js";
 
 type QuoteToken = { amount: bigint, decimals: number; };
 
@@ -10,7 +11,7 @@ export type Quote = {
 };
 
 export interface SwapWithRefundParams {
-  chainId: number;
+  chainId: ChainId;
   feeReceiver: Address;
   nativeRecipient: Address;
   tokenIn: Address;
@@ -20,7 +21,7 @@ export interface SwapWithRefundParams {
 }
 
 export interface QuoteInNativeTokenParams {
-  chainId: number, 
+  chainId: ChainId, 
   tokenAddress: Address, 
   reciever?: Address,
   amount: bigint

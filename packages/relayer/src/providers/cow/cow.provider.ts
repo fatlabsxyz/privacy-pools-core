@@ -64,11 +64,12 @@ export class CowProvider implements SwapProvider {
       return {
         valueIn: { amount: tokenAmount, decimals: this.getTokenDecimals(tokenAddress)},
         valueOut: { amount: ethAmount, decimals: this.ethDecimals},
-        path: ["cow_protocol"] // TODO this is the optional multihop path with fees and stuff
+        path: ["cow_protocol"] // TODO this is supposed to be the optional multihop path with fees and stuff
         }; 
     } catch(error) {
-      logger.error(`CoW SDK request failed: ${error}`);
-      throw new Error(`CoW SDK request failed: ${error}`);
+      const errorMsg = `CoW SDK request failed: ${error}`;
+      logger.error(errorMsg, {error});
+      throw new Error(errorMsg);
     } 
   }
 
@@ -92,8 +93,9 @@ export class CowProvider implements SwapProvider {
       logger.info('Etherscan:', `https://etherscan.io/tx/${txHash}`)
       return txHash as Hex;
     } else {
-      logger.error("could not get tx hash from swap order", order)
-      throw Error("could not get txhash from swap")
+      const errorMsg = "Could not get tx hash from swap order";
+      logger.error(errorMsg, {order})
+      throw Error(errorMsg)
     }
   }
 
@@ -102,23 +104,23 @@ export class CowProvider implements SwapProvider {
     return new OrderBookApi({ chainId: supportedChainId });
   }
 
-  async waitForOrderExecution(orderId: string, orderBookApi: OrderBookApi,timeoutMs = 300000): Promise<EnrichedOrder> { 
+  async waitForOrderExecution(orderId: string, orderBookApi: OrderBookApi, timeoutMs = 300000): Promise<EnrichedOrder> { 
     const startTime = Date.now()
     
     while (Date.now() - startTime < timeoutMs) {
       const order = await orderBookApi.getOrder(orderId)
       
       if (order.status === 'fulfilled') {
-        console.log('✅ Order executed!')
+        logger.info(`Order executed: ${order}`)
         return order
       }
       
       if (order.status === 'cancelled' || order.status === 'expired') {
-        throw new Error(`Order ${order.status}`)
+        throw new Error(`Order ${order.status}: ${order}`)
       }
       
       console.log(`Order status: ${order.status}, waiting...`)
-      await new Promise(resolve => setTimeout(resolve, 5000)) // Check every 5s
+      await new Promise(resolve => setTimeout(resolve, 5000)) // check every 5s
     }
     
     throw new Error('Order execution timeout')
@@ -152,6 +154,7 @@ export class CowProvider implements SwapProvider {
       case 11155111:
         return SupportedChainId.SEPOLIA;
       default:
+        logger.error(`call to cow-quoter with unsupported chain id (it only supports mainnet or sepolia)`)
         throw new Error(`Unsupported chainId ${chainId}`);
     }
   }
@@ -162,10 +165,15 @@ export class CowProvider implements SwapProvider {
     const tokenDecimals: Record<string, number> = {
       '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': 6,  // USDC
       '0xdac17f958d2ee523a2206206994597c13d831ec7': 6,  // USDT  
+      '0xa1fdf8c4894439cc6ff5cdf354d234052e01aa59': 18, // FRXUSD
+      '0xdC035D45d973E3EC169d2276DDab16f1e407384F': 18, // USDS 
+      '0xa3931d71877C0E7a3148CB7Eb4463524FEc27fbD': 18, // sUSDS
+      '0x4c9EDD5852cd905f086C759E8383e09bff1E68B3': 18, // USDe
+      '0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d': 18, // USD1
       '0x6b175474e89094c44da98b954eedeac495271d0f': 18, // DAI
-      '0xa1fdf8c4894439cc6ff5cdf354d234052e01aa59': 18, // FRAX USD
-      '0xd4ca8b6d7f5a5c8b7e8c7b8f3f7b8f3f7b8f3f7b': 18  // WOETH 
-      // TODO add all the other ones or figure out a better way to do this
+      '0xd4ca8b6d7f5a5c8b7e8c7b8f3f7b8f3f7b8f3f7b': 18, // WOETH 
+      '0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0': 18, // wstETH 
+      '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599': 8,  // wBTC 
     };
 
     return tokenDecimals[addr] || 18; // default to 18 decimals for unknown tokens

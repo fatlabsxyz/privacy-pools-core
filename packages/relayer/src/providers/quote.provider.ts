@@ -42,6 +42,8 @@ export class QuoteProvider {
 
     // const quote = await uniswapProvider.quoteNativeToken(chainId, addressIn, amountIn);
     const quote = await cowProvider.quoteNativeToken({chainId, tokenAddress: addressIn, amount: amountIn});
+    
+    logger.debug(`Quote returned by quote provider: ${quote}`, { quote })
     return {num: quote.valueOut.amount, den: quote.valueIn.amount, path: quote.path}  // TODO not sure if this is correct
   }
 

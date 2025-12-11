@@ -7,7 +7,6 @@ import { Quote, QuoteInNativeTokenParams, SwapProvider, SwapWithRefundParams } f
 import { erc20Abi, Hex } from "viem";
 import { ChainId } from "../../types.js";
 import { RelayerConfig } from "../../config/config.js";
-import { add } from "winston";
 
 function Cow() {};
 const logger = createModuleLogger(Cow);
@@ -21,6 +20,7 @@ export type CowQuote = {
 export class CowProvider implements SwapProvider {
   private sdk: Map<SupportedChainId, TradingSdk>;
   private ethDecimals: number = 18;
+  private vaultRelayerContract: Address = "0xC92E8bdf79f0507f65a392b0ab4667716BFE0110"; //TODO this contract could be different per chain
 
   constructor() {
     this.sdk = new Map();
@@ -83,7 +83,10 @@ export class CowProvider implements SwapProvider {
 
     // get quote in native token
     const quote = await this.generateEthQuote(chainId, tokenIn, refundAmount); // TODO is refund amount ok?
-    // call for the swap //TODO this swaps the full amount
+    // allow quoted tokens to be swapped 
+    const swapAmount = quote.quoteResults.amountsAndCosts.afterNetworkCosts.sellAmount; // TODO is this the right amount?
+    this.ensureTokenApproval(chainId, tokenIn, swapAmount);
+    // call for the swap
     const {orderId} = await quote.postSwapOrderFromQuote();
     // wait for swap to complete
     const order = await this.waitForOrderExecution(orderId, orderBookApi); 
@@ -99,6 +102,49 @@ export class CowProvider implements SwapProvider {
       const errorMsg = "Could not get tx hash from swap order";
       logger.error(errorMsg, {order})
       throw Error(errorMsg)
+    }
+  }
+
+  private async ensureTokenApproval(chainId: ChainId, tokenAddress: Address, amount: bigint) { 
+    // get vault relayer address for the chain
+    const vaultRelayerAddress = this.vaultRelayerContract;
+    
+    const client = await web3Provider.client(chainId);
+    const signer = await web3Provider.signer(chainId);
+
+    if (!signer.account) {
+      throw new Error("Wallet client account not found");
+    }
+
+    // check current allowance
+    const currentAllowance = await client.readContract({
+      address: tokenAddress,
+      abi: erc20Abi,
+      functionName: "allowance",
+      args: [signer.account.address, vaultRelayerAddress]
+    });
+
+    logger.info(`Current allowance: ${currentAllowance.toString()}, needed: ${amount.toString()}`);
+
+    if (currentAllowance < amount) {
+      logger.info(`Approving vault relayer ${vaultRelayerAddress} to spend ${amount.toString()} tokens`);
+      
+      const hash = await signer.writeContract({
+        address: tokenAddress,
+        abi: erc20Abi,
+        functionName: "approve",
+        args: [vaultRelayerAddress, amount],
+        account: signer.account,
+        chain: signer.chain
+      });
+
+      logger.info(`Approval transaction: ${hash}`);
+      
+      // wait for transaction confirmation
+      await client.waitForTransactionReceipt({ hash });
+      logger.info("Approval confirmed");
+    } else {
+      logger.info("Token already approved for sufficient amount");
     }
   }
 

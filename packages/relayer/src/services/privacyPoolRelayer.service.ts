@@ -164,8 +164,8 @@ export class PrivacyPoolRelayer {
 
     const relayerGasRefundValue = gasPrice * quoteService.extraGasTxCost + relayGasPrice * relayGasUsed;
 
-    // const txHash = await this.uniswapProvider.swapExactInputForWeth({
-    const txHash = await cowProvider.swapExactInputForWeth({ //TODO investigate this
+    const txHash = await this.uniswapProvider.swapExactInputForWeth({
+    // const txHash = await cowProvider.swapExactInputForWeth({ //TODO swaps are arbitrum for now 
       chainId,
       feeGross,
       feeBase,

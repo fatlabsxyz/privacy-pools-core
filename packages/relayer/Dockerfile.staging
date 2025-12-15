@@ -1,0 +1,31 @@
+FROM node:20
+
+# copy workspace files and install root dependencies
+COPY package.json yarn.lock tsconfig.base.json ./
+
+# copy SDK source and circuits
+COPY packages/sdk ./packages/sdk
+COPY packages/circuits ./packages/circuits
+
+# build SDK with circuits
+WORKDIR ./packages/sdk
+RUN yarn install
+RUN yarn build
+RUN yarn circuits:copy
+
+# copy relayer and install dependencies
+WORKDIR /
+COPY packages/relayer ./packages/relayer
+WORKDIR ./packages/relayer  
+RUN yarn install
+
+# force replace the installed SDK with local build
+RUN rm -rf node_modules/@0xbow/privacy-pools-core-sdk
+RUN mkdir -p node_modules/@0xbow/privacy-pools-core-sdk
+RUN cp -r ../sdk/* ./node_modules/@0xbow/privacy-pools-core-sdk/
+
+# build relayer with local sdk
+RUN yarn build
+
+EXPOSE 3000
+CMD ["yarn", "start"]

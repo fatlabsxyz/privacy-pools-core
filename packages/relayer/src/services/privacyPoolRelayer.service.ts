@@ -21,7 +21,7 @@ import { decodeWithdrawalData, isNative, isViemError, parseSignals } from "../ut
 import { quoteService } from "./index.js";
 import { Web3Provider } from "../providers/web3.provider.js";
 import { FeeCommitment } from "../interfaces/relayer/common.js";
-import { uniswapProvider, cowProvider } from "../providers/index.js";
+import { uniswapProvider } from "../providers/index.js";
 import { WRAPPED_NATIVE_TOKEN_ADDRESS } from "../providers/uniswap/constants.js";
 import { Withdrawal, WithdrawalProof } from "@0xbow/privacy-pools-core-sdk";
 import { privateKeyToAccount } from "viem/accounts";

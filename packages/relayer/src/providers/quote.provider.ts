@@ -1,6 +1,6 @@
 import { Address, getAddress } from "viem";
 import { uniswapProvider, cowProvider } from "./index.js";
-import { FRAXUSD_ADDRESS, WOETH_ADDRESS } from "../config/index.js";
+import { FRAXUSD_ADDRESS, WOETH_ADDRESS, YUSND_ADDRESS } from "../config/index.js";
 import { ChainId } from "../types.js";
 import { createModuleLogger } from "../logger/index.js";
 
@@ -32,6 +32,19 @@ export class QuoteProvider {
     return { num: amountIn, den: (amountIn * 12n) / 10n, path: [] };
   }
 
+  private async quoteNativeTokenInYUSND(chainId: ChainId, addressIn: Address, amountIn: bigint): Promise<{ num: bigint, den: bigint, path: (string | number)[]; }> {
+    // yUSND has 18 decimals, USDC has 6 decimals
+    // adjust the amountIn from 18 decimals to 6 decimals
+    const DECIMAL_DIFFERENCE = 10n ** 12n;  // 18-6
+    const adjustedAmount = amountIn / DECIMAL_DIFFERENCE;
+
+    // Get the USDC quote - this returns how much ETH we need for X USDC
+    const { valueOut, path } = (await cowProvider.quoteNativeToken({chainId, tokenAddress: USDC_ADDRESS as Address, amount: adjustedAmount}))!;
+
+    // So num = ETH amount, den = yUSND amount in 18 decimals
+    return { num: valueOut.amount, den: amountIn, path };
+  }
+
   async quoteNativeTokenInERC20(chainId: ChainId, addressIn: Address, amountIn: bigint): Promise<{ num: bigint, den: bigint, path: (string | number)[]; }> {
     // XXX: if FRXUSD, use USDC quote but adjust for decimal difference
     if (chainId === 1 && getAddress(addressIn) === getAddress(FRAXUSD_ADDRESS)) {
@@ -40,6 +53,9 @@ export class QuoteProvider {
       return this.quoteNativeTokenInWoeth(chainId, addressIn, amountIn);
     } else if (chainId === 42161) {
       // TODO: this for BARBITRUM
+      if (getAddress(addressIn) === getAddress(YUSND_ADDRESS)) {
+        return this.quoteNativeTokenInYUSND(chainId, addressIn, amountIn)
+      }
       const quote = await cowProvider.quoteNativeToken({chainId, tokenAddress: addressIn, amount: amountIn});
       return {num: quote.valueOut.amount, den: quote.valueIn.amount, path: quote.path}
     }

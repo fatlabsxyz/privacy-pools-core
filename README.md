@@ -4,7 +4,7 @@ Privacy Pool is a blockchain protocol that enables private asset transfers. User
 
 ## Overview
 
-The protocol implements a system of smart contracts and zero-knowledge proofs to enable privacy-preserving transfers while maintaining compliance through approved address sets. It supports both native assets and ERC20 token transfers.
+The protocol implements a system of smart contracts and zero-knowledge proofs to enable privacy-preserving transfers while maintaining compliance through approved address sets. It supports both native assets and ERC20 token transfers. 
 
 ## Repository Structure
 

@@ -2,6 +2,7 @@ import { getAddress } from "viem";
 
 export { RelayerConfig } from "./config.js";
 
+export const YUSND_ADDRESS = getAddress("0x252b965400862d94bda35fecf7ee0f204a53cc36");  // yUSND
 export const FRAXUSD_ADDRESS = getAddress("0xCAcd6fd266aF91b8AeD52aCCc382b4e165586E29");  // FRAXUSD
 export const WOETH_ADDRESS   = getAddress("0xDcEe70654261AF21C44c093C300eD3Bb97b78192");  // WOETH
 export const EXCEPTION_TOKENS = [

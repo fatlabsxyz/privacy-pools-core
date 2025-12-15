@@ -7,6 +7,7 @@ import { Quote, QuoteInNativeTokenParams, SwapProvider, SwapWithRefundParams } f
 import { erc20Abi, Hex } from "viem";
 import { ChainId } from "../../types.js";
 import { RelayerConfig } from "../../config/config.js";
+import { add } from "winston";
 
 function Cow() {};
 const logger = createModuleLogger(Cow);
@@ -199,26 +200,44 @@ export class CowProvider implements SwapProvider {
   }
 
   private getSupportedChainId(chainId: ChainId): SupportedChainId {
-    switch (chainId) {
-      case 1:
-        return SupportedChainId.MAINNET;
-      case 11155111:
-        return SupportedChainId.SEPOLIA;
-      default:
-        logger.error(`call to cow-quoter with unsupported chain id (it only supports mainnet or sepolia)`)
-        throw new Error(`Unsupported chainId ${chainId}`);
-    }
+    if (Object.values(SupportedChainId).includes(chainId as SupportedChainId)) {
+      return chainId as SupportedChainId;
+    } 
+    logger.error(`call to cow-quoter with unsupported chain id`)
+    throw new Error(`Unsupported chainId ${chainId}`);
   }
 
   private async getTokenDecimals(address: Address, chainId: ChainId): Promise<number> {
-    const client = await web3Provider.client(chainId);
-    const decimals = await client.readContract({
-      address,
-      abi: erc20Abi,
-      functionName: "decimals"
-    });
+
+    const tokenDecimals: Record<string, number> = {
+      '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': 6,  // USDC
+      '0xdac17f958d2ee523a2206206994597c13d831ec7': 6,  // USDT  
+      '0xa1fdf8c4894439cc6ff5cdf354d234052e01aa59': 18, // FRXUSD
+      '0xdC035D45d973E3EC169d2276DDab16f1e407384F': 18, // USDS 
+      '0xa3931d71877C0E7a3148CB7Eb4463524FEc27fbD': 18, // sUSDS
+      '0x4c9EDD5852cd905f086C759E8383e09bff1E68B3': 18, // USDe
+      '0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d': 18, // USD1
+      '0x6b175474e89094c44da98b954eedeac495271d0f': 18, // DAI
+      '0xd4ca8b6d7f5a5c8b7e8c7b8f3f7b8f3f7b8f3f7b': 18, // WOETH 
+      '0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0': 18, // wstETH 
+      '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599': 8,  // wBTC 
+    };
+
+    return tokenDecimals[address.toLowerCase()] || this.ethDecimals;
+
+    // const client = await web3Provider.client(chainId);
+    // const decimals = await client.readContract({
+    //   address,
+    //   abi: [{
+    //     name: 'decimals',
+    //     type: 'function',
+    //     stateMutability: 'view',
+    //     outputs: [{ type: 'uint8' }],
+    //   }],
+    //   functionName: "decimals"
+    // }) as Promise<number>;
     
-    return decimals || this.ethDecimals; // default to 18 decimals for unknown tokens
+    // return decimals || this.ethDecimals; // default to 18 decimals for unknown tokens
   }
 
   private async createSdkForChain(chainId: ChainId) {

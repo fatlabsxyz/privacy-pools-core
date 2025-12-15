@@ -168,11 +168,12 @@ export class CowProvider implements SwapProvider {
         throw new Error(`Order ${order.status}: ${order}`)
       }
       
-      console.log(`Order status: ${order.status}, waiting...`)
+      logger.debug(`Order status: ${order.status}, waiting...`)
       await new Promise(resolve => setTimeout(resolve, 5000)) // check every 5s
     }
-    
-    throw new Error('Order execution timeout')
+    const error = 'Order execution timeout'; 
+    logger.error(error)
+    throw new Error(error)
   }
 
   private async generateEthQuote(chainId: ChainId, token: Address,  amount: bigint): Promise<QuoteAndPost> {   

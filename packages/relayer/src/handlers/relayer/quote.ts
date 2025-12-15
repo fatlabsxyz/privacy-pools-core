@@ -50,6 +50,12 @@ export async function relayQuoteHandler(
         `Extra gas feature not supported for ${asset}`,
       ),
     );
+  } else if (extraGas && chainId == 42161) {
+    return next(
+      QuoterError.assetNotSupported(
+        `Extra gas feature not supported for chain 42161`,
+      ),
+    );
   }
 
   let quote: QuoteFee;

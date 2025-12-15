@@ -50,6 +50,12 @@ export async function relayQuoteHandler(
         `Extra gas feature not supported for ${asset}`,
       ),
     );
+  } else if (extraGas && chainId == 42161) {
+    return next(
+      QuoterError.assetNotSupported(
+        `Extra gas feature not supported for chain 42161`,
+      ),
+    );
   }
 
   let quote: QuoteFee;
@@ -62,6 +68,7 @@ export async function relayQuoteHandler(
       extraGas,
     });
   } catch (e) {
+    logger.error('Quote service error', { error: e, chainId, asset, amountIn: amountIn.toString() });
     return next(e);
   }
 
@@ -72,7 +79,6 @@ export async function relayQuoteHandler(
     relayTxCost,
     extraGasTxCost
   } = quote;
-
 
   const recipient = req.body.recipient
     ? getAddress(req.body.recipient.toString())

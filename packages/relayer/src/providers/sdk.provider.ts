@@ -46,7 +46,7 @@ export class SdkProvider implements SdkProviderInterface {
     const chainConfig = await config.config();
     const chain = createChainObject(chainConfig);
     const entrypointAddress = await config.entrypointAddress();
-    const signerPrivateKey = await config.entrypointAddress();
+    const signerPrivateKey = await config.signerPrivateKey();
 
     // Create contract instance
     const contracts = this.sdk.createContractInstance(

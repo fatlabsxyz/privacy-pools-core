@@ -1,7 +1,6 @@
 import { Address } from "viem";
 import { quoteProvider, web3Provider } from "../providers/index.js";
 import { ChainId } from "../types.js";
-import { QuoterError } from "../exceptions/base.exception.js";
 
 interface QuoteFeeBPSParams {
   chainId: ChainId,

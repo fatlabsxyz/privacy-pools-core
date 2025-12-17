@@ -295,7 +295,17 @@ export class QuoterError extends RelayerError {
 
   public static override assetNotSupported(
     details?: Record<string, unknown> | string) {
-    return new QuoterError("Asset is not supported", ErrorCode.ASSET_NOT_SUPPORTED, details);
+    return new QuoterError("Asset is not supported by quoter", ErrorCode.ASSET_NOT_SUPPORTED, details);
+  }
+
+  public static cowQuoterError(
+    details?: Record<string, unknown> | string) {
+    return new QuoterError("CowSwap quote error", ErrorCode.QUOTE_ERROR, details);
+  }
+
+  public static chainNotSupported(
+    details?: Record<string, unknown> | string) {
+    return new QuoterError("Chain is not supported by quoter", ErrorCode.CHAIN_NOT_SUPPORTED, details);
   }
 
   public static amountTooLow(
@@ -305,6 +315,6 @@ export class QuoterError extends RelayerError {
 
   public static extraGasNotSupported(
   details?: Record<string, unknown> | string) {
-    return new QuoterError("Extra gas is not supported.", ErrorCode.UNSUPPORTED_FEATURE, details);
+    return new QuoterError("Extra gas is not supported", ErrorCode.UNSUPPORTED_FEATURE, details);
   }
 }

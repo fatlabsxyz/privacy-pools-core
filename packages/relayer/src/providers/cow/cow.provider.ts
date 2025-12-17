@@ -7,6 +7,7 @@ import { Quote, QuoteInNativeTokenParams, SwapProvider, SwapWithRefundParams } f
 import { erc20Abi, Hex } from "viem";
 import { ChainId } from "../../types.js";
 import { RelayerConfig } from "../../config/config.js";
+import { QuoterError } from "../../exceptions/base.exception.js";
 
 function Cow() {};
 const logger = createModuleLogger(Cow);
@@ -50,7 +51,7 @@ export class CowProvider implements SwapProvider {
 
       if (!quoteResults?.quoteResponse?.quote?.sellAmount || !quoteResults?.quoteResponse?.quote?.buyAmount) {
         logger.error('Invalid quote response structure', { quoteResults });
-        throw new Error('Invalid quote response from CoW SDK');
+        throw QuoterError.cowQuoterError({ message: 'Invalid quote response from CoW SDK', quoteResults});
       }
 
       const tokenAmount = BigInt(quoteResults.quoteResponse.quote.sellAmount);
@@ -71,7 +72,7 @@ export class CowProvider implements SwapProvider {
     } catch(error) {
       const errorMsg = `CoW SDK request failed: ${error}`;
       logger.error(errorMsg, {error});
-      throw new Error(errorMsg);
+      throw QuoterError.cowQuoterError({error});
     } 
   }
 
@@ -81,9 +82,9 @@ export class CowProvider implements SwapProvider {
     const orderBookApi = this.getOrderBookApi(chainId);
 
     // get quote in native token
-    const quote = await this.generateEthQuote(chainId, tokenIn, refundAmount); // TODO is refund amount ok?
+    const quote = await this.generateEthQuote(chainId, tokenIn, refundAmount);
     // allow quoted tokens to be swapped 
-    const swapAmount = quote.quoteResults.amountsAndCosts.afterNetworkCosts.sellAmount; // TODO is this the right amount?
+    const swapAmount = quote.quoteResults.amountsAndCosts.afterNetworkCosts.sellAmount;
     this.ensureTokenApproval(chainId, tokenIn, swapAmount);
     // call for the swap
     const {orderId} = await quote.postSwapOrderFromQuote();
@@ -100,7 +101,7 @@ export class CowProvider implements SwapProvider {
     } else {
       const errorMsg = "Could not get tx hash from swap order";
       logger.error(errorMsg, {order})
-      throw Error(errorMsg)
+      throw QuoterError.cowQuoterError({message: errorMsg, order})
     }
   }
 
@@ -112,7 +113,7 @@ export class CowProvider implements SwapProvider {
     const signer = await web3Provider.signer(chainId);
 
     if (!signer.account) {
-      throw new Error("Wallet client account not found");
+      throw QuoterError.cowQuoterError("Wallet client account not found");
     }
 
     // check current allowance
@@ -164,7 +165,7 @@ export class CowProvider implements SwapProvider {
       }
       
       if (order.status === 'cancelled' || order.status === 'expired') {
-        throw new Error(`Order ${order.status}: ${order}`)
+        throw QuoterError.cowQuoterError(`Order ${order.status}: ${order}`)
       }
       
       logger.debug(`Order status: ${order.status}, waiting...`)
@@ -172,7 +173,7 @@ export class CowProvider implements SwapProvider {
     }
     const error = 'Order execution timeout'; 
     logger.error(error)
-    throw new Error(error)
+    throw QuoterError.cowQuoterError(error)
   }
 
   private async generateEthQuote(chainId: ChainId, token: Address,  amount: bigint): Promise<QuoteAndPost> {   
@@ -206,22 +207,27 @@ export class CowProvider implements SwapProvider {
     if (Object.values(SupportedChainId).includes(chainId as SupportedChainId)) {
       return chainId as SupportedChainId;
     } 
-    logger.error(`call to cow-quoter with unsupported chain id`)
-    throw new Error(`Unsupported chainId ${chainId}`);
+    logger.error(`call to cow-quoter with unsupported chain id: ${chainId}`)
+    throw QuoterError.chainNotSupported(`Unsupported chainId ${chainId}`);
   }
 
   private async getTokenDecimals(address: Address, chainId: ChainId): Promise<number> {
     const client = await web3Provider.client(chainId);
-    const decimals = await client.readContract({
-      address,
-      abi: [{
-        name: 'decimals',
-        type: 'function',
-        stateMutability: 'view',
-        outputs: [{ type: 'uint8' }],
-      }],
-      functionName: "decimals"
-    }) as Promise<number>;
+    let decimals: Promise<number> | undefined = undefined;
+    try {
+      decimals = await client.readContract({
+        address,
+        abi: [{
+          name: 'decimals',
+          type: 'function',
+          stateMutability: 'view',
+          outputs: [{ type: 'uint8' }],
+        }],
+        functionName: "decimals"
+      }) as Promise<number>;
+    } catch(e) {
+      logger.warn(e)
+    }
     
     return decimals || this.ethDecimals; // default to 18 decimals for unknown tokens
   }

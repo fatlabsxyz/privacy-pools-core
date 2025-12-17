@@ -57,12 +57,7 @@ export class QuoteService {
     if (assetAddress.toLowerCase() === NativeAddress.toLowerCase()) {
       quote = { num: 1n, den: 1n, path: [] };
     } else {
-      try {
-        quote = await quoteProvider.quoteNativeTokenInERC20(chainId, assetAddress, amountIn);
-      } catch(errorMsg) {
-        console.error(errorMsg);
-        throw QuoterError.amountTooLow(`${errorMsg}`);
-      }
+      quote = await quoteProvider.quoteNativeTokenInERC20(chainId, assetAddress, amountIn);
     }
 
     const feeBPS = await this.netFeeBPSNative(baseFeeBPS, amountIn, quote, gasPrice, extraGasUnits);

@@ -36,6 +36,7 @@ export enum ErrorCode {
 
   // Quote errors
   QUOTE_ERROR = "QUOTE_ERROR",
+  UNSUPPORTED_FEATURE = "UNSUPPORTED_FEATURE",
   AMOUNT_LOW = "AMOUNT_LOW",
 }
 
@@ -300,5 +301,10 @@ export class QuoterError extends RelayerError {
   public static amountTooLow(
   details?: Record<string, unknown> | string) {
     return new QuoterError("Amount to quote is too low", ErrorCode.AMOUNT_LOW, details);
+  }
+
+  public static extraGasNotSupported(
+  details?: Record<string, unknown> | string) {
+    return new QuoterError("Extra gas is not supported.", ErrorCode.UNSUPPORTED_FEATURE, details);
   }
 }

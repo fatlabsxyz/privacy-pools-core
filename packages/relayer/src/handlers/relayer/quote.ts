@@ -46,13 +46,13 @@ export async function relayQuoteHandler(
     // XXX: Block extraGas for EXCEPTION_TOKENS
     if (extraGas && isExceptionToken(asset)) {
       return next(
-        QuoterError.assetNotSupported(
+        QuoterError.extraGasNotSupported(
           `Extra gas feature not supported for ${asset}`,
         ),
       );
     } else if (extraGas && chainId == 42161) {
       return next(
-        QuoterError.assetNotSupported(
+        QuoterError.extraGasNotSupported(
           `Extra gas feature not supported for chain 42161`,
         ),
       );

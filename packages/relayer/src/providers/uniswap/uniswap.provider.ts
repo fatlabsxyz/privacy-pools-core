@@ -21,8 +21,8 @@ import { Quote, QuoteInNativeTokenParams, SwapProvider, SwapWithRefundParams } f
 
 export type UniswapQuote = {
   chainId: ChainId;
-  addressIn: string;
-  addressOut: string;
+  addressIn: Address;
+  addressOut: Address;
   amountIn: bigint;
 };
 
@@ -96,12 +96,13 @@ export class UniswapProvider implements SwapProvider {
   async quoteNativeToken(params: QuoteInNativeTokenParams): Promise<Quote> {
     const {chainId, amount: amountIn, tokenAddress: addressIn } = params;
     const weth = WRAPPED_NATIVE_TOKEN_ADDRESS[chainId]!;
+    const wethAddress = getAddress(weth.address);
     // First try direct quote
     try {
       const {valueIn, valueOut, path} = await this.quote({
         chainId,
         amountIn,
-        addressOut: weth.address,
+        addressOut: wethAddress,
         addressIn
       });
 
@@ -122,7 +123,7 @@ export class UniswapProvider implements SwapProvider {
           return this.quoteMultiHop({
             chainId,
             amountIn,
-            path: [addressIn as Address, intermediateToken, weth.address as Address]
+            path: [addressIn, intermediateToken, wethAddress]
           });
         } catch {
           continue;
@@ -176,16 +177,17 @@ export class UniswapProvider implements SwapProvider {
   }
 
   async quote({ chainId, addressIn, addressOut, amountIn }: UniswapQuote): Promise<Quote> {
-    const tokenIn = await this.getTokenInfo(chainId, addressIn as Address);
-    const tokenOut = await this.getTokenInfo(chainId, addressOut as Address);
+
+    const tokenIn = await this.getTokenInfo(chainId, addressIn);
+    const tokenOut = await this.getTokenInfo(chainId, addressOut);
     const quoterContract = await this.getQuoter(chainId);
-
     const fee = await this.findLowestFeePoolForPair(chainId, addressIn, addressOut);
-    try {
 
+    try {
+      
       const quotedAmountOut = await quoterContract.simulate.quoteExactInputSingle([{
-        tokenIn: tokenIn.address as Address,
-        tokenOut: tokenOut.address as Address,
+        tokenIn: getAddress(tokenIn.address),
+        tokenOut: getAddress(tokenOut.address),
         fee,
         amountIn,
         sqrtPriceLimitX96: 0n,

@@ -1,6 +1,7 @@
 import { Address } from "viem";
 import { quoteProvider, web3Provider } from "../providers/index.js";
 import { ChainId } from "../types.js";
+import { QuoterError } from "../exceptions/base.exception.js";
 
 interface QuoteFeeBPSParams {
   chainId: ChainId,
@@ -56,7 +57,12 @@ export class QuoteService {
     if (assetAddress.toLowerCase() === NativeAddress.toLowerCase()) {
       quote = { num: 1n, den: 1n, path: [] };
     } else {
-      quote = await quoteProvider.quoteNativeTokenInERC20(chainId, assetAddress, amountIn);
+      try {
+        quote = await quoteProvider.quoteNativeTokenInERC20(chainId, assetAddress, amountIn);
+      } catch(errorMsg) {
+        console.error(errorMsg);
+        throw QuoterError.amountTooLow(`${errorMsg}`);
+      }
     }
 
     const feeBPS = await this.netFeeBPSNative(baseFeeBPS, amountIn, quote, gasPrice, extraGasUnits);

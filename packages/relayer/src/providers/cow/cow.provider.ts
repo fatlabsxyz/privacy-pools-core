@@ -1,5 +1,5 @@
 import { Address } from "@0xbow/privacy-pools-core-sdk";
-import { TradingSdk, SupportedChainId, OrderKind, QuoteAndPost, OrderBookApi, EnrichedOrder } from "@cowprotocol/cow-sdk";
+import { TradingSdk, SupportedChainId, OrderKind, QuoteAndPost, OrderBookApi, EnrichedOrder, TradeParameters } from "@cowprotocol/cow-sdk";
 import { ViemAdapter } from "@cowprotocol/sdk-viem-adapter";
 import { createModuleLogger } from "../../logger/index.js";
 import { web3Provider } from "../index.js";
@@ -43,7 +43,6 @@ export class CowProvider implements SwapProvider {
   async quoteNativeToken({chainId, tokenAddress, amount}: QuoteInNativeTokenParams): Promise<Quote> {
     try {
       this.createSdkForChain(chainId)
-
 
       const { quoteResults } = await this.generateEthQuote(chainId, tokenAddress, amount);
 
@@ -189,14 +188,18 @@ export class CowProvider implements SwapProvider {
 
     const sdk = this.sdk.get(supportedChainId)!; 
 
-    return sdk.getQuote({
+    const tradeParameters: TradeParameters = {
         kind: OrderKind.SELL,
         sellToken: token,
         buyToken: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" as Address,
         amount: amount.toString(),
         sellTokenDecimals,
         buyTokenDecimals: this.ethDecimals
-    });
+    };
+
+    logger.debug('Calling CoW SDK with parameters', { tradeParameters });
+    
+    return sdk.getQuote(tradeParameters);
   }
 
   private getSupportedChainId(chainId: ChainId): SupportedChainId {

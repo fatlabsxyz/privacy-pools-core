@@ -36,6 +36,7 @@ export enum ErrorCode {
 
   // Quote errors
   QUOTE_ERROR = "QUOTE_ERROR",
+  AMOUNT_LOW = "AMOUNT_LOW",
 }
 
 /**
@@ -296,4 +297,8 @@ export class QuoterError extends RelayerError {
     return new QuoterError("Asset is not supported", ErrorCode.ASSET_NOT_SUPPORTED, details);
   }
 
+  public static amountTooLow(
+  details?: Record<string, unknown> | string) {
+    return new QuoterError("Amount to quote is too low", ErrorCode.AMOUNT_LOW, details);
+  }
 }

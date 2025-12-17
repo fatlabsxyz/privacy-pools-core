@@ -64,8 +64,8 @@ export async function createApp(): Promise<Express> {
   // admin route
   app.use("/admin", adminMiddleware, adminRouter());
 
-  // Error and 404 handling
+  // Error and 404 handling 
   app.use([errorHandlerMiddleware, notFoundMiddleware]);
-
+  
   return app;
 }

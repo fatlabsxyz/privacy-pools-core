@@ -3,6 +3,7 @@ import { uniswapProvider, cowProvider } from "./index.js";
 import { FRAXUSD_ADDRESS, WOETH_ADDRESS, YUSND_ADDRESS } from "../config/index.js";
 import { ChainId } from "../types.js";
 import { createModuleLogger } from "../logger/index.js";
+import { QuoterError } from "../exceptions/base.exception.js";
 
 function Quote() {};
 const logger = createModuleLogger(Quote);
@@ -38,6 +39,16 @@ export class QuoteProvider {
     // adjust the amountIn from 18 decimals to 6 decimals
     const DECIMAL_DIFFERENCE = 10n ** 12n;  // 18-6
     const adjustedAmount = amountIn / DECIMAL_DIFFERENCE;
+
+    // Check if adjusted amount is too small for cow-swap
+    const minAdjustedAmount = 20000n; // Minimum for 6-decimal USDC (0.02 USDC)
+    if (adjustedAmount < minAdjustedAmount) {
+      const errorMsg = `Amount too small for CoW Protocol quote: ${adjustedAmount.toString()} USDC units. Minimum required: ${minAdjustedAmount.toString()} USDC units (0.02 USDC)`;
+      logger.error(errorMsg, { adjustedAmount, amountIn, addressIn });
+      throw QuoterError.amountTooLow(errorMsg);
+    }
+
+    logger.debug(`yUSND quote: converting ${amountIn.toString()} (18 decimals) to ${adjustedAmount.toString()} (6 decimals)`);
 
     // Get the USDC quote - this returns how much ETH we need for X USDC
     const { valueOut, path } = (await cowProvider.quoteNativeToken({chainId, tokenAddress: USDC_ADDRESS_ARBITRUM as Address, amount: adjustedAmount}))!;

@@ -94,19 +94,19 @@ export class UniswapProvider implements SwapProvider {
   }
 
   async quoteNativeToken(params: QuoteInNativeTokenParams): Promise<Quote> {
-    const {chainId, amount: amountIn, tokenAddress: addressIn } = params;
+    const { chainId, amount: amountIn, tokenAddress: addressIn } = params;
     const weth = WRAPPED_NATIVE_TOKEN_ADDRESS[chainId]!;
     const wethAddress = getAddress(weth.address);
     // First try direct quote
     try {
-      const {valueIn, valueOut, path} = await this.quote({
+      const { valueIn, valueOut, path } = await this.quote({
         chainId,
         amountIn,
         addressOut: wethAddress,
         addressIn
       });
 
-      return {valueIn, valueOut, path };
+      return { valueIn, valueOut, path };
     } catch (directError) {
 
       // If direct quote fails, try multi-hop routing
@@ -176,25 +176,42 @@ export class UniswapProvider implements SwapProvider {
     return fee;
   }
 
-  async quote({ chainId, addressIn, addressOut, amountIn }: UniswapQuote): Promise<Quote> {
-
+  async findGreatestOutputForPair({ chainId, addressIn, addressOut, amountIn }: UniswapQuote) {
     const tokenIn = await this.getTokenInfo(chainId, addressIn);
     const tokenOut = await this.getTokenInfo(chainId, addressOut);
     const quoterContract = await this.getQuoter(chainId);
-    const fee = await this.findLowestFeePoolForPair(chainId, addressIn, addressOut);
-
-    try {
-      
-      const quotedAmountOut = await quoterContract.simulate.quoteExactInputSingle([{
+    // {fee, (amount, sqrtPriceX96After, tickAfter, gasEstimate)}[]
+    const quotedAmountsOut = await Promise.all(FeeTiers.map(async fee => {
+      return quoterContract.simulate.quoteExactInputSingle([{
         tokenIn: getAddress(tokenIn.address),
         tokenOut: getAddress(tokenOut.address),
         fee,
         amountIn,
         sqrtPriceLimitX96: 0n,
-      }]);
+      }])
+        .then(({ result }) => ({ fee, result }))
+        .catch(_ => undefined); // some pools dont exist
+    }));
 
-      // amount, sqrtPriceX96After, tickAfter, gasEstimate
-      const [amount, , ,] = quotedAmountOut.result;
+    const sorted = quotedAmountsOut
+      .filter(x => x !== undefined)
+      .sort((a, b) => Number(b.result[0] - a.result[0]));
+
+    return sorted[0];
+  }
+
+  async quote({ chainId, addressIn, addressOut, amountIn }: UniswapQuote): Promise<Quote> {
+
+    const tokenIn = await this.getTokenInfo(chainId, addressIn);
+    const tokenOut = await this.getTokenInfo(chainId, addressOut);
+
+    try {
+      const bestQuote = await this.findGreatestOutputForPair({ chainId, addressIn, addressOut, amountIn });
+      if (bestQuote === undefined) {
+        throw RelayerError.unknown("Couldn't find any direct pool!");
+      }
+      const { fee, result: [amount, , ,] } = bestQuote;
+
       return {
         path: [tokenIn.address, fee.toString(), tokenOut.address],
         valueIn: {
@@ -237,7 +254,16 @@ export class UniswapProvider implements SwapProvider {
     for (const hop of hops) {
       const [tokenA, tokenB] = hop;
       try {
-        const fee = await this.findLowestFeePoolForPair(chainId, tokenA, tokenB);
+        const bestQuote = await this.findGreatestOutputForPair({
+          chainId,
+          addressIn: tokenA,
+          addressOut: tokenB,
+          amountIn
+        });
+        if (bestQuote === undefined) {
+          throw RelayerError.unknown("Couldn't find any direct pool!");
+        }
+        const { fee } = bestQuote;
         const feePath = { token: tokenA, fee };
         pathWithFees.push(feePath);
       } catch {

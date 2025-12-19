@@ -30,6 +30,15 @@ type AccountServiceConfig =
     account: PrivacyPoolAccount;
   };
 
+interface WithdrawalSecrets {
+  nullifier: Secret;
+  secret: Secret;
+}
+
+interface DepositSecrets extends WithdrawalSecrets {
+  precommitment: Hash;
+}
+
 /**
  * Service responsible for managing privacy pool accounts and their associated commitments.
  * Handles account initialization, deposit/withdrawal tracking, and history synchronization.
@@ -227,6 +236,10 @@ export class AccountService {
     return result;
   }
 
+  public generateNullifierHash(nullifier: Secret): Hash {
+    return poseidon([nullifier]) as Hash;
+  }
+
   /**
    * Creates nullifier and secret for a new deposit
    *
@@ -238,26 +251,41 @@ export class AccountService {
    * If no index is provided, it uses the current number of accounts for the scope.
    * The precommitment is a hash of the nullifier and secret, used in the deposit process.
    */
+   public createDepositSecrets(
+    scope: Hash,
+    index?: number
+  ): DepositSecrets
+   public createDepositSecrets(
+    scope: Hash,
+    index: number,
+    endIndex: number
+  ): DepositSecrets[];
   public createDepositSecrets(
     scope: Hash,
-    index?: bigint
-  ): {
-    nullifier: Secret;
-    secret: Secret;
-    precommitment: Hash;
-  } {
-    if (index && index < 0n) {
+    index?: number,
+    endIndex?: number
+  ): DepositSecrets | DepositSecrets[] {
+    if (index && index < 0) {
       throw AccountError.invalidIndex(index);
+    } else if (endIndex && index && endIndex < index) {
+      throw AccountError.invalidIndex(endIndex);
     }
 
     const accounts = this.account.poolAccounts.get(scope);
-    index = index ?? BigInt(accounts?.length || 0);
+    const startIndex = index ?? accounts?.length ?? 0;
+    const actualEndIndex = endIndex ?? (startIndex + 1);
+    const secretsCount = actualEndIndex - startIndex;
 
-    const nullifier = this._genDepositNullifier(scope, index);
-    const secret = this._genDepositSecret(scope, index);
-    const precommitment = this._hashPrecommitment(nullifier, secret);
+    const secrets = Array.from(Array(secretsCount)).map((_, iterationCount) => {
+      const depositIndex = BigInt(iterationCount + startIndex);
+      const nullifier = this._genDepositNullifier(scope, depositIndex);
+      const secret = this._genDepositSecret(scope, depositIndex);
+      const precommitment = this._hashPrecommitment(nullifier, secret);
+  
+      return { nullifier, secret, precommitment };
+    });
 
-    return { nullifier, secret, precommitment };
+    return endIndex === undefined ? secrets[0]! : secrets;
   }
 
   /**
@@ -273,28 +301,39 @@ export class AccountService {
    *
    * @throws {AccountError} If no account is found for the commitment
    */
-  public createWithdrawalSecrets(commitment: AccountCommitment): {
-    nullifier: Secret;
-    secret: Secret;
-  } {
-    let index: bigint | undefined;
 
-    for (const accounts of this.account.poolAccounts.values()) {
-      const account = accounts.find((acc) => acc.label === commitment.label);
-      if (account) {
-        index = BigInt(account.children.length);
-        break;
+  public createWithdrawalSecrets({ label, withdrawalIndex }: Pick<AccountCommitment, 'label'> & { withdrawalIndex?: number }): WithdrawalSecrets
+  public createWithdrawalSecrets({ label, withdrawalIndex }: Pick<AccountCommitment, 'label'> & { withdrawalIndex?: number; withdrawalCount: number }): WithdrawalSecrets[]
+  public createWithdrawalSecrets({ label, withdrawalIndex, withdrawalCount }: Pick<AccountCommitment, 'label'> & { withdrawalIndex?: number; withdrawalCount?: number }): WithdrawalSecrets | WithdrawalSecrets[] {
+    let index = withdrawalIndex;
+
+    if (index === undefined) {
+      for (const accounts of this.account.poolAccounts.values()) {
+        const account = accounts.find((acc) => acc.label === label);
+        if (account) {
+          index = account.children.length;
+          break;
+        }
       }
     }
 
     if (index === undefined) {
-      throw AccountError.commitmentNotFound(commitment.label);
+      throw AccountError.commitmentNotFound(label);
     }
 
-    const nullifier = this._genWithdrawalNullifier(commitment.label, index);
-    const secret = this._genWithdrawalSecret(commitment.label, index);
+    const actualEndIndex = index + (withdrawalCount ?? 1);
+    const secretsCount = actualEndIndex - index;
 
-    return { nullifier, secret };
+    const secrets = Array.from(Array(secretsCount)).map((_, iterationCount) => {
+      const bigIntIndex = BigInt(iterationCount + index);
+
+      const nullifier = this._genWithdrawalNullifier(label, bigIntIndex);
+      const secret = this._genWithdrawalSecret(label, bigIntIndex);
+
+      return { nullifier, secret };
+    });
+
+    return withdrawalCount !== undefined ? secrets : secrets[0]!;
   }
 
   /**
@@ -628,10 +667,10 @@ export class AccountService {
   ): void {
     const MAX_CONSECUTIVE_MISSES = 10; // Large enough to avoid tx failures
 
-    const foundIndices = new Set<bigint>();
+    const foundIndices = new Set<number>();
     let consecutiveMisses = 0;
 
-    for (let index = BigInt(0); ; index++) {
+    for (let index = 0; ; index++) {
       // Generate nullifier, secret, and precommitment for this index
       const { nullifier, secret, precommitment } = this.createDepositSecrets(
         scope,

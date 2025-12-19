@@ -1,4 +1,6 @@
 import {
+  Abi,
+  BlockTag,
   ContractEventName,
   Hex,
   ParseEventLogsReturnType,
@@ -32,6 +34,9 @@ interface EventsParsersResultsByKey {
   [EVENTS_SIGNATURES.WITHDRAWAL.name]: WithdrawalEvent;
   [EVENTS_SIGNATURES.RAGEQUIT.name]: RagequitEvent;
 }
+
+type EventNameToEntity<T extends (keyof typeof EVENTS_SIGNATURES)[]> =
+  EventsParsersResultsByKey[typeof EVENTS_SIGNATURES[T[number]]['name']]
 
 const EVENTS_PARSERS: {
   [key in keyof typeof EVENTS_SIGNATURES as typeof EVENTS_SIGNATURES[key]['name']]:
@@ -132,6 +137,13 @@ const EVENTS_PARSERS: {
     }
   }
 }
+
+const parseEventEntity = <
+  const log extends ParseEventLogsReturnType<
+    typeof EVENTS_SIGNATURES[keyof typeof EVENTS_SIGNATURES][]
+  >>(logs: log) => {
+  return logs.map((event) => EVENTS_PARSERS[event.eventName](event as never));
+};
 
 /**
  * Service responsible for fetching and managing privacy pool events across multiple chains.
@@ -279,20 +291,49 @@ export class DataService {
     }
   }
 
-  async getTransactionEvents<Event extends (keyof typeof EVENTS_SIGNATURES)[]>(
+  async getEvents<const Events extends (keyof typeof EVENTS_SIGNATURES)[]>({
+    pool: {
+      chainId,
+      deploymentBlock,
+      address
+    },
+    fromBlock = deploymentBlock,
+    events,
+    toBlock = 'latest',
+  }: {
+    pool: Omit<PoolInfo, 'scope'>,
+    fromBlock?: bigint;
+    toBlock?: BlockTag | bigint;
+    events?: Events;
+  }): Promise<EventsParsersResultsByKey[typeof EVENTS_SIGNATURES[Events[number]]['name']][]> {
+    const eventsToQuery = events || ['DEPOSIT', 'RAGEQUIT', 'WITHDRAWAL'] as const;
+    const client = this.getClientForChain(chainId);
+
+    const abis = eventsToQuery.map(
+      (event) => EVENTS_SIGNATURES[event]
+    );
+
+    const logs = await client.getLogs({
+      address,
+      events: abis,
+      fromBlock,
+      toBlock,
+    });
+
+    const parsedLogs = parseEventLogs({
+      logs,
+      abi: abis
+    });
+    
+    return parseEventEntity(parsedLogs) as EventsParsersResultsByKey[typeof EVENTS_SIGNATURES[Events[number]]['name']][];
+  }
+
+  async getTransactionEvents<const Events extends (keyof typeof EVENTS_SIGNATURES)[]>(
     pool: Pick<PoolInfo, 'chainId'>,
     transactionHash: Hex,
-    ...events: Event
+    ...events: Events
   ): Promise<
-    ReturnType<
-      typeof EVENTS_PARSERS[
-        typeof EVENTS_SIGNATURES[
-          Event extends [] ?
-            keyof typeof EVENTS_SIGNATURES :
-            Event[number]
-        ]['name']
-      ]
-    >[]
+    EventNameToEntity<Events>[]
   > {
     try {
       const eventsToParse = events || ['DEPOSIT', 'RAGEQUIT', 'WITHDRAWAL'];
@@ -304,17 +345,9 @@ export class DataService {
       const parsedEvents = parseEventLogs({
         abi,
         logs: receipt.logs,
-      })
+      });
 
-     return parsedEvents.map((event) => EVENTS_PARSERS[event.eventName](event as never)) as ReturnType<
-      typeof EVENTS_PARSERS[
-        typeof EVENTS_SIGNATURES[
-          Event extends [] ?
-            keyof typeof EVENTS_SIGNATURES :
-            Event[number]
-        ]['name']
-      ]
-    >[];
+      return parseEventEntity(parsedEvents) as EventNameToEntity<Events>[];
     } catch (error) {
       if (error instanceof DataError) throw error;
       throw DataError.networkError(pool.chainId, error instanceof Error ? error : new Error(String(error)));

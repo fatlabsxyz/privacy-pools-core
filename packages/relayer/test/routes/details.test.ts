@@ -7,7 +7,9 @@ import { originalConfig } from '../inputs/originalConfig.js';
 import { getAddress } from 'viem';
 
 
-describe.each(originalConfig.chains)('Details Route - Chain $chain_name ($chain_id)', (chainConfig) => {
+const chainConfig = originalConfig.chains[0]!;
+
+describe('Details Route - Chain ethereum (1)', () => {
 
   const VALID_CHAIN_ID = chainConfig.chain_id; 
   const VALID_RECIEVER_ADDRESS = chainConfig.fee_receiver_address; 

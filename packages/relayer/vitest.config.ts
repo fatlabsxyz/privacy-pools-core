@@ -13,8 +13,8 @@ export default defineConfig({
     environment: "node",
     include: ["test/**/*.spec.ts", "test/**/*.test.ts"],
     exclude: ["node_modules", "dist"],
-    setupFiles: ["test/setup.ts", "test/mocks/logger.ts", "test/mocks/config.mock.ts"],
-    globalTeardown: ["tests/teardown.ts"],
+    globalSetup: ["test/setup.ts"],
+    setupFiles: ["test/mocks/logger.ts", "test/mocks/config.mock.ts"],
     testTimeout: 10000,
     silent: false,
     coverage: {

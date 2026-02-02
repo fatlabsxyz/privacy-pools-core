@@ -10,9 +10,9 @@ const VALID_API_KEY = 'test-key-123';
 
 describe('Config Auth Middleware', () => {
   const VALID_CONFIG = originalConfig;
-  const ETH_ASSET = VALID_CONFIG.chains[1].supported_assets[0]!;
+  const ETH_ASSET = VALID_CONFIG.chains[0]!.supported_assets[0]!;
   const VALID_ASSET_ADDRESS = getAddress(ETH_ASSET.asset_address);
-  const VALID_ENTRYPOINT_ADDRESS = getAddress(VALID_CONFIG.defaults.entrypoint_address);
+  const VALID_ENTRYPOINT_ADDRESS = getAddress(VALID_CONFIG.chains[0]!.entrypoint_address);
   
   const VALID_CONFIG_PAYLOAD = {
     entrypoint_address: VALID_ENTRYPOINT_ADDRESS,
@@ -38,10 +38,10 @@ describe('Config Auth Middleware', () => {
     app = await createApp();
   });
 
-  describe.concurrent('PATCH /config authentication', () => {
+  describe.concurrent('PATCH /admin/config authentication', () => {
     it('rejects request without api-key header', async () => {
       const response = await request(app)
-        .patch('/config')
+        .patch('/admin/config')
         .send(VALID_CONFIG_PAYLOAD);
 
       expect(response.status).toBe(400);
@@ -52,7 +52,7 @@ describe('Config Auth Middleware', () => {
 
     it('rejects request with invalid api-key', async () => {
       const response = await request(app)
-        .patch('/config')
+        .patch('/admin/config')
         .set('x-api-key', 'invalid')
         .send(VALID_CONFIG_PAYLOAD);
 
@@ -64,7 +64,7 @@ describe('Config Auth Middleware', () => {
 
     it('rejects request with empty api-key', async () => {
       const response = await request(app)
-        .patch('/config')
+        .patch('/admin/config')
         .set('x-api-key', '')
         .send(VALID_CONFIG_PAYLOAD);
 
@@ -76,10 +76,10 @@ describe('Config Auth Middleware', () => {
 
   });
 
-  describe.concurrent('DELETE /config authentication', () => {
+  describe.concurrent('DELETE /admin/config authentication', () => {
     it('rejects request without api-key header', async () => {
       const response = await request(app)
-        .delete('/config')
+        .delete('/admin/config')
         .send(VALID_DELETE_PAYLOAD);
 
       expect(response.status).toBe(400);
@@ -90,7 +90,7 @@ describe('Config Auth Middleware', () => {
 
     it('rejects request with invalid api-key', async () => {
       const response = await request(app)
-        .delete('/config')
+        .delete('/admin/config')
         .set('x-api-key', 'wrongkey')
         .send(VALID_DELETE_PAYLOAD);
 
@@ -105,7 +105,7 @@ describe('Config Auth Middleware', () => {
   describe.concurrent('case sensitivity and edge cases', () => {
     it('rejects uppercase API key', async () => {
       const response = await request(app)
-        .patch('/config')
+        .patch('/admin/config')
         .set('x-api-key', VALID_API_KEY.toUpperCase())
         .send(VALID_CONFIG_PAYLOAD);
 
@@ -116,7 +116,7 @@ describe('Config Auth Middleware', () => {
     it('rejects mixed case API key', async () => {
       const mixedCase = VALID_API_KEY.charAt(0).toUpperCase() + VALID_API_KEY.slice(1).toLowerCase();
       const response = await request(app)
-        .patch('/config')
+        .patch('/admin/config')
         .set('x-api-key', mixedCase)
         .send(VALID_CONFIG_PAYLOAD);
 

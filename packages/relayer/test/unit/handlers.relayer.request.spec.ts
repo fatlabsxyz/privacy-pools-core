@@ -33,11 +33,11 @@ const withdrawalPayload = {
     curve: "bn128",
   },
   publicSignals: ["0", "0", "0", "0", "0", "0", "0", "0"],
-  chainId: 31337,
+  chainId: 1,
   scope: "0",
   feeCommitment: {
     withdrawalData: validWithdrawalData,
-    asset: "0x1111111111111111111111111111111111111111",
+    asset: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
     expiration: Date.now() + 60000,
     amount: "1000",
     extraGas: false,
@@ -79,7 +79,7 @@ describe("relayRequestHandler", () => {
 
   it("gas price below max is ok", async () => {
     const req = { body: { ...withdrawalPayload } };
-    vi.spyOn(web3Provider, "getGasPrice").mockResolvedValue(2000000000n);  // max_gas_price == 5000000000
+    vi.spyOn(web3Provider, "getGasPrice").mockResolvedValue(2000000000n);  // max_gas_price == 40000000000
     vi.spyOn(privacyPoolRelayer, "handleRequest").mockResolvedValue(undefined);
     await relayRequestHandler(req, resMock, nextMock);
     expect(nextMock.mock.calls[0][0]).toEqual(undefined)
@@ -88,7 +88,7 @@ describe("relayRequestHandler", () => {
 
   it("gas price above max is rejected", async () => {
     const req = { body: { ...withdrawalPayload } };
-    vi.spyOn(web3Provider, "getGasPrice").mockResolvedValue(10000000000n);  // max_gas_price == 5000000000
+    vi.spyOn(web3Provider, "getGasPrice").mockResolvedValue(50000000000n);  // max_gas_price == 40000000000
     vi.spyOn(privacyPoolRelayer, "handleRequest").mockResolvedValue(undefined);
     await relayRequestHandler(req, resMock, nextMock);
     const error = nextMock.mock.calls[0][0]

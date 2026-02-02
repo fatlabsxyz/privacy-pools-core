@@ -6,7 +6,9 @@ import { ASSET_NOT_SUPPORTED_ERROR_BODY, INVALID_ERROR_BODY } from '../inputs/er
 import { originalConfig } from '../inputs/originalConfig.js';
 import { getAddress } from 'viem';
 
-describe.each(originalConfig.chains)('Quote Route - Chain $chain_name ($chain_id)', (chainConfig) => {
+const chainConfig = originalConfig.chains[0]!;
+
+describe('Quote Route - Chain ethereum (1)', () => {
 
   const VALID_CHAIN_ID = chainConfig.chain_id;
   const VALID_ASSET = chainConfig.supported_assets[0]!;

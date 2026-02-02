@@ -77,9 +77,9 @@ export async function relayQuoteHandler(
     const {
       feeBPS,
       gasPrice,
-      extraGasFundAmount,
       relayTxCost,
-      extraGasTxCost
+      extraGasTxCost,
+      extraGasFundAmount
     } = quote;
 
     const recipient = req.body.recipient

@@ -74,9 +74,9 @@ export interface RelayerResponse {
   /** Unique request identifier (UUID) */
   requestId: string;
   /** Optional transaction hash */
-  txHash?: string;
+  relayTxHash?: string;
   /** Optional transaction swap hash */
-  txSwap?: string;
+  sendTxHash?: string;
   /** Optional error message */
   error?: string;
 }

@@ -17,7 +17,7 @@ import {
 import { db, SdkProvider, UniswapProvider, web3Provider } from "../providers/index.js";
 import { RelayerDatabase } from "../types/db.types.js";
 import { SdkProviderInterface } from "../types/sdk.types.js";
-import { decodeWithdrawalData, isNative, isViemError, parseSignals } from "../utils.js";
+import { decodeWithdrawalData, isNative, isViemError, max, min, parseSignals } from "../utils.js";
 import { quoteService } from "./index.js";
 import { Web3Provider } from "../providers/web3.provider.js";
 import { FeeCommitment } from "../interfaces/relayer/common.js";
@@ -27,6 +27,7 @@ import { Withdrawal, WithdrawalProof } from "@0xbow/privacy-pools-core-sdk";
 import { privateKeyToAccount } from "viem/accounts";
 import { ChainId } from "../types.js";
 import { createModuleLogger } from "../logger/index.js";
+import { ChickenService } from "./chicken.service.js";
 
 /**
  * Class representing the Privacy Pool Relayer, responsible for processing withdrawal requests.
@@ -73,30 +74,21 @@ export class PrivacyPoolRelayer {
         throw ZkError.invalidProof();
       }
 
-      // We do early check, before relaying
-      if (extraGas) {
-        if (!WRAPPED_NATIVE_TOKEN_ADDRESS[chainId]) {
-          const errorMsg = `Missing wrapped native token for chain ${chainId}`;
-          logger.error(errorMsg)
-          throw RelayerError.unknown(errorMsg);
-        }
-      }
+      const { hash: relayTxHash } = await this.broadcastWithdrawal(req, chainId);
 
-      const response = await this.broadcastWithdrawal(req, chainId);
-
-      let txSwap;
+      let sendTxHash;
       if (extraGas) {
         // TODO HERE
-        txSwap = await this.sendExtraGas(req.scope, req.withdrawal, req.proof, chainId, response.hash);
+        sendTxHash = await this.sendExtraGas(req.scope, req.withdrawal, req.proof, chainId, relayTxHash);
         // txSwap = await this.swapForNativeAndFund(req.scope, req.withdrawal, req.proof, chainId, response.hash);
       }
 
-      await this.db.updateBroadcastedRequest(requestId, response.hash);
+      await this.db.updateBroadcastedRequest(requestId, relayTxHash);
 
       return {
         success: true,
-        txHash: response.hash,
-        txSwap,
+        relayTxHash,
+        sendTxHash,
         timestamp,
         requestId,
       };
@@ -153,50 +145,32 @@ export class PrivacyPoolRelayer {
 
     const client = await web3Provider.client(chainId);
     const relayReceipt = await client.waitForTransactionReceipt({ hash: relayTx as `0x${string}` });
-    const { gasUsed: relayGasUsed, effectiveGasPrice: relayGasPrice } = relayReceipt;
+    const { effectiveGasPrice: relayGasPrice } = relayReceipt;
 
     const chainConfig = new RelayerConfig().chain(chainId);
     const assetConfig = await chainConfig.assetConfig(assetAddress);
 
-
     const { recipient, relayFeeBPS } = decodeWithdrawalData(withdrawal.data);
-    const withdrawnValue = parseSignals(proof.publicSignals).withdrawnValue;
+    const withdrawnValue = parseSignals(proof.publicSignals).withdrawnValue; //Should be erc20
     const gasPrice = await web3Provider.getGasPrice(chainId);
 
-    const feeGross = withdrawnValue * relayFeeBPS / 10_000n; // full extra gas amount
-    const feeBase = withdrawnValue * assetConfig.fee_bps / 10_000n; // relay fee
+    const withdrawnValueInEther: AmountInEther = quote(withdrawnValue: AnyERC20Token);
     
-    const relayerGasRefundValue = gasPrice * quoteService.extraGasTxCost + relayGasPrice * relayGasUsed;
-    const relayTxCost = relayerGasRefundValue; // TODO this might not be right 
+    const chickenService = new ChickenService();
 
-    const sendGasUnits = 21000n; // we're just doing ETH send, but ERC-20 token transfers typically cost 50,000–65,000 gas units
-    const sendTxCost = gasPrice * sendGasUnits;
-
-    const q = 1n; // TODO: fully quoted TOKEN amount in eth WEI? if already quoted, should be 1
-
-    const valueNet = (feeGross - feeBase) * q - relayTxCost - sendTxCost;
-
-    // NOTE: min and max don't work with bigints
-    // const amountToSend = Math.min(650_000n, Math.max(100_000n, valueNet)); 
-    const amountToSend = valueNet < 100_000n ? 100_000n : valueNet > 650_000n ? 650_000n : valueNet; 
-
-    const relayer = await web3Provider.signer(chainId);
-
-    if (!relayer.account) {
-      const error = "Send error: Signer account not found";
-      logger.error(error);
-      throw Error(error);
-    }
-    
-    // send the user their extraGas funds
     const sendParams = {
-      to: recipient,
-      value: amountToSend,
-      account: relayer.account,
-      chain: relayer.chain
-    };
+        withdrawnValueInEther, 
+        relayFeeBPS, 
+        baseFeeBPS: assetConfig.fee_bps,
+        relayGasPrice,
+        gasPrice
+    }
+    const amountToSend = await chickenService.calculateSendAmount(sendParams); 
 
-    const txHash = await relayer.sendTransaction(sendParams);
+    if (amountToSend <= 100_000n) logger.error("Sent too little money, user is poor now")
+
+    // send the user their extraGas funds
+    const txHash = await web3Provider.sendExtraGasTransaction(chainId, recipient, amountToSend);
     
     return txHash;
   }

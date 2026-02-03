@@ -342,15 +342,6 @@ export class PrivacyPoolRelayer {
         throw WithdrawalValidationError.relayerCommitmentRejected(error);
       }
 
-      // TODO: remove this check beacuse we should already have errored out at the begining
-      const { relayFeeBPS: commitmentRelayFeeBPS } = decodeWithdrawalData(wp.feeCommitment.withdrawalData);
-      if (relayFeeBPS !== commitmentRelayFeeBPS) {
-        const error = 
-          `Proof relay fee does not match signed commitment: pi:=${relayFeeBPS}, commitment:=${commitmentRelayFeeBPS}`;
-        logger.error(error);
-        throw WithdrawalValidationError.relayerCommitmentRejected(error);
-      }
-
       if (commitmentExpired(wp.feeCommitment)) {
         const error = 
           `Relay fee commitment expired, please quote again`;
@@ -364,9 +355,18 @@ export class PrivacyPoolRelayer {
         throw WithdrawalValidationError.relayerCommitmentRejected(error);
       }
 
+      // TODO: remove this check beacuse we should already have errored out at the begining
+      const { relayFeeBPS: commitmentRelayFeeBPS } = decodeWithdrawalData(wp.feeCommitment.withdrawalData);
+      if (relayFeeBPS !== commitmentRelayFeeBPS) {
+        const error = 
+          `Proof relay fee does not match signed commitment: pi:=${relayFeeBPS}, commitment:=${commitmentRelayFeeBPS}`;
+        logger.error(error);
+        throw WithdrawalValidationError.relayerCommitmentRejected(error);
+      }
+
     } else {
 
-      const currentFeeBPS = await quoteService.quoteFeeBPSNative({
+      const currentFeeBPS = await quoteService.quote({
         chainId,
         amountIn: proofSignals.withdrawnValue,
         assetAddress,

@@ -1,6 +1,6 @@
 import { NextFunction, Response } from "express";
-import { isExceptionToken, RelayerConfig } from "../../config/index.js";
-import { ConfigError, RelayerError, ValidationError } from "../../exceptions/base.exception.js";
+import { RelayerConfig } from "../../config/index.js";
+import { ConfigError, ValidationError } from "../../exceptions/base.exception.js";
 import {
   RelayerResponse,
   WithdrawalPayload,
@@ -77,11 +77,6 @@ export async function relayRequestHandler(
     const chain = new RelayerConfig().chain(chainId);
     const maxGasPrice = await chain.max_gas_price();
     const currentGasPrice = await web3Provider.getGasPrice(chainId);
-
-    // XXX: Block extraGas for EXCEPTION_TOKENS
-    if (withdrawalPayload.feeCommitment?.extraGas && isExceptionToken(withdrawalPayload.feeCommitment?.asset)) {
-      return next(RelayerError.assetNotSupported(`Extra gas feature not supported for ${withdrawalPayload.feeCommitment?.asset}`));
-    }
 
     if (maxGasPrice !== undefined && currentGasPrice > maxGasPrice) {
       return next(ConfigError.maxGasPrice(`Current gas price ${currentGasPrice} is higher than max price ${maxGasPrice}`));

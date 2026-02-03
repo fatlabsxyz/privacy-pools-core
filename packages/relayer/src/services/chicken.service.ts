@@ -14,7 +14,8 @@ export class ChickenService {
     constructor () {
     } 
 
-    async netFeeBPSNative(
+    async getFeeBPS(
+        // assetAddress: Address,
         baseFee: bigint, 
         balance: bigint, 
         nativeQuote: { num: bigint, den: bigint; }, 
@@ -22,12 +23,14 @@ export class ChickenService {
         extraGas: boolean
     ): Promise<bigint> {  
 
+        // TODO: if it's illiquid token we should charge 10% over total BPS
+
         const extraGasUnits = extraGas ? this.extraGasTotalGasUnits : 0n;
         const totalGasUnits = this.relayTxGasUnits + extraGasUnits;
         const nativeCosts = (1n * gasPrice * totalGasUnits);
-        const netFeeBPSNative = baseFee + nativeQuote.den * 10_000n * nativeCosts / balance / nativeQuote.num;
+        const feeBPS = baseFee + nativeQuote.den * 10_000n * nativeCosts / balance / nativeQuote.num;
 
-        return netFeeBPSNative
+        return feeBPS;
     }
 
     async calculateSendAmount(

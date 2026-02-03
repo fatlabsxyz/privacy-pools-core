@@ -101,12 +101,13 @@ describe('ChickenService', () => {
 
       // feeGross = 1 ETH * 500 / 10_000 = 0.05 ETH = 50_000_000_000_000_000
       // relayerProfit = 1 ETH * 100 / 10_000 = 0.01 ETH = 10_000_000_000_000_000
-      // relayTxGasCost = 30 gwei * 320_000 + 30 gwei * 650_000 = 9_600_000_000_000 + 19_500_000_000_000 = 29_100_000_000_000
-      // sendTxCost = 30 gwei * 21_000 = 630_000_000_000
-      // valueNet = 50_000_000_000_000_000 - 10_000_000_000_000_000 - 29_100_000_000_000 - 630_000_000_000
-      // valueNet = 39_970_270_000_000_000
-      // amountToSend = min(650_000, valueNet) = 650_000 (capped)
-      expect(amount).toBe(1_000_000n);
+      // relayTxGasCost = 30 gwei * 320_000 + 30 gwei * 650_000 = 9_600_000_000_000_000 + 19_500_000_000_000_000 = 29_100_000_000_000_000
+      // sendTxCost = 30 gwei * 21_000 = 630_000_000_000_000
+      // valueNet = 50_000_000_000_000_000 - 10_000_000_000_000_000 - 29_100_000_000_000_000 - 630_000_000_000_000
+      // valueNet = 10_270_000_000_000_000
+      // extraGasFundCap = 1_000_000 * 30 gwei = 30_000_000_000_000_000
+      // amountToSend = min(30_000_000_000_000_000, 10_270_000_000_000_000) = 10_270_000_000_000_000
+      expect(amount).toBe(10_270_000_000_000_000n);
     });
 
     it('should return uncapped value when valueNet is less than 650_000', async () => {
@@ -158,15 +159,16 @@ describe('ChickenService', () => {
 
       const amount = await chickenService.calculateSendAmount(params);
 
-      // feeGross = 1 ETH * 1000 / 10_000 = 0.1 ETH
-      // relayerProfit = 1 ETH * 200 / 10_000 = 0.02 ETH
+      // feeGross = 1 ETH * 1000 / 10_000 = 0.1 ETH = 100_000_000_000_000_000
+      // relayerProfit = 1 ETH * 10 / 10_000 = 0.001 ETH = 1_000_000_000_000_000
       // relayTxGasCost = 20 gwei * 320_000 + 50 gwei * 650_000
-      //                = 6_400_000_000_000 + 32_500_000_000_000 = 38_900_000_000_000
-      // sendTxCost = 20 gwei * 21_000 = 420_000_000_000
-      // valueNet = 100_000_000_000_000_000 - 20_000_000_000_000_000 - 38_900_000_000_000 - 420_000_000_000
-      // valueNet = 79_960_680_000_000_000
-      // amountToSend = min(650_000, valueNet) = 650_000
-      expect(amount).toBe(chickenService.extraGasFundGasUnits);
+      //                = 6_400_000_000_000_000 + 32_500_000_000_000_000 = 38_900_000_000_000_000
+      // sendTxCost = 20 gwei * 21_000 = 420_000_000_000_000
+      // valueNet = 100_000_000_000_000_000 - 1_000_000_000_000_000 - 38_900_000_000_000_000 - 420_000_000_000_000
+      // valueNet = 59_680_000_000_000_000
+      // extraGasFundCap = 1_000_000 * 20 gwei = 20_000_000_000_000_000
+      // amountToSend = min(20_000_000_000_000_000, 59_680_000_000_000_000) = 20_000_000_000_000_000 (capped)
+      expect(amount).toBe(chickenService.extraGasFundGasUnits * params.gasPrice);
     });
   });
 });

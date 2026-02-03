@@ -11,17 +11,17 @@ export class ChickenService {
 
     extraGasTotalGasUnits = this.extraGasTxGasUnits + this.extraGasFundGasUnits;
 
-    constructor () {
-    } 
+    constructor() {
+    }
 
     async getFeeBPS(
         // assetAddress: Address,
-        baseFee: bigint, 
-        balance: bigint, 
-        nativeQuote: { num: bigint, den: bigint; }, 
-        gasPrice: bigint, 
+        baseFee: bigint,
+        balance: bigint,
+        nativeQuote: { num: bigint, den: bigint; },
+        gasPrice: bigint,
         extraGas: boolean
-    ): Promise<bigint> {  
+    ): Promise<bigint> {
 
         // TODO: if it's illiquid token we should charge 10% over total BPS
 
@@ -35,30 +35,31 @@ export class ChickenService {
 
     async calculateSendAmount(
         params: {
-        withdrawnValueInEther: bigint, 
-        relayFeeBPS: bigint, 
-        baseFeeBPS: bigint,
-        relayGasPrice: bigint,
-        gasPrice: bigint
+            withdrawnValueInEther: bigint,
+            relayFeeBPS: bigint,
+            baseFeeBPS: bigint,
+            relayGasPrice: bigint,
+            gasPrice: bigint
         }
     ): Promise<bigint> {
-    const { withdrawnValueInEther, relayFeeBPS, baseFeeBPS, relayGasPrice, gasPrice } = params;
+        const { withdrawnValueInEther, relayFeeBPS, baseFeeBPS, relayGasPrice, gasPrice } = params;
 
-    const feeGross = withdrawnValueInEther * relayFeeBPS / 10_000n; // full extra gas + fee amount
-    const relayerProfit = withdrawnValueInEther  * baseFeeBPS / 10_000n;
-    
-    const relayTxGasCost = gasPrice * this.extraGasTxGasUnits + relayGasPrice * this.relayTxGasUnits;
+        const feeGross = withdrawnValueInEther * relayFeeBPS / 10_000n; // full extra gas + fee amount- IN WEI!!!
+        const relayerProfit = withdrawnValueInEther * baseFeeBPS / 10_000n;
 
-    const sendGasUnits = 21000n; // we're just doing ETH send, but ERC-20 token transfers typically cost 50,000–65,000 gas units
-    const sendTxGasCost = gasPrice * sendGasUnits;
+        const relayTxGasCost = gasPrice * this.extraGasTxGasUnits + relayGasPrice * this.relayTxGasUnits;
 
-    const valueNet = feeGross - relayerProfit - relayTxGasCost - sendTxGasCost;
-    console.log("value net:", valueNet);
+        const sendGasUnits = 21000n; // we're just doing ETH send, but ERC-20 token transfers typically cost 50,000–65,000 gas units
+        const sendTxGasCost = gasPrice * sendGasUnits;
 
-    const amountToSend = min(this.extraGasFundGasUnits, valueNet); 
-    console.log("amount to send:", amountToSend);
+        const valueNet = feeGross - relayerProfit - relayTxGasCost - sendTxGasCost;
+        console.log("value net:", valueNet);
+
+        const extraGasFundCap = this.extraGasFundGasUnits * gasPrice;
+        const amountToSend = min(extraGasFundCap, valueNet);
+        console.log("amount to send:", amountToSend);
 
 
-    return amountToSend;
+        return amountToSend;
     }
 }

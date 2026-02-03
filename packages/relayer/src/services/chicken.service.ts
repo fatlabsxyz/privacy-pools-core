@@ -5,9 +5,9 @@ export class ChickenService {
     // a typical withdrawal costs between 450k-650k gas
     relayTxGasUnits = 650_000n;
     // approximate value of a uniswap Router call. Can vary greatly if doing multi-hop swaps.
-    extraGasTxGasUnits = 320_000n;
+    extraGasTxGasUnits = 320_000n; //CHANGE
     // this gas will be transformed into equivalent native units at the time of the fund swap.
-    extraGasFundGasUnits = 600_000n;
+    extraGasFundGasUnits = 1_000_000n;
 
     extraGasTotalGasUnits = this.extraGasTxGasUnits + this.extraGasFundGasUnits;
 

@@ -50,11 +50,13 @@ export class ChickenService {
     const relayTxGasCost = gasPrice * this.extraGasTxGasUnits + relayGasPrice * this.relayTxGasUnits;
 
     const sendGasUnits = 21000n; // we're just doing ETH send, but ERC-20 token transfers typically cost 50,000–65,000 gas units
-    const sendTxCost = gasPrice * sendGasUnits;
+    const sendTxGasCost = gasPrice * sendGasUnits;
 
-    const valueNet = feeGross - relayerProfit - relayTxGasCost - sendTxCost;
+    const valueNet = feeGross - relayerProfit - relayTxGasCost - sendTxGasCost;
+    console.log("value net:", valueNet);
 
-    const amountToSend = min(650_000n, valueNet); 
+    const amountToSend = min(this.extraGasFundGasUnits, valueNet); 
+    console.log("amount to send:", amountToSend);
 
 
     return amountToSend;

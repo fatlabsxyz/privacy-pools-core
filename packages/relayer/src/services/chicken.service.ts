@@ -53,12 +53,13 @@ export class ChickenService {
         const sendTxGasCost = gasPrice * sendGasUnits;
 
         const valueNet = feeGross - relayerProfit - relayTxGasCost - sendTxGasCost;
-        console.log("value net:", valueNet);
+
+        if (valueNet <= 0n) {
+            throw new Error(`extraGas valueNet is negative or zero (${valueNet}). Fee does not cover gas costs. feeGross=${feeGross}, relayerProfit=${relayerProfit}, relayTxGasCost=${relayTxGasCost}, sendTxGasCost=${sendTxGasCost}`);
+        }
 
         const extraGasFundCap = this.extraGasFundGasUnits * gasPrice;
         const amountToSend = min(extraGasFundCap, valueNet);
-        console.log("amount to send:", amountToSend);
-
 
         return amountToSend;
     }

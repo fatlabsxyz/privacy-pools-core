@@ -110,7 +110,7 @@ describe('ChickenService', () => {
       expect(amount).toBe(10_270_000_000_000_000n);
     });
 
-    it('should return uncapped value when valueNet is less than 650_000', async () => {
+    it('should throw when gas costs exceed fee (negative valueNet)', async () => {
       const params = {
         withdrawnValueInEther: 10_000_000_000_000n, // 0.00001 ETH (very small)
         relayFeeBPS: 500n,
@@ -119,19 +119,11 @@ describe('ChickenService', () => {
         gasPrice: 1_000_000_000n, // 1 gwei
       };
 
-      const amount = await chickenService.calculateSendAmount(params);
-
-      // feeGross = 10_000_000_000_000 * 500 / 10_000 = 500_000_000_000
-      // relayerProfit = 10_000_000_000_000 * 100 / 10_000 = 100_000_000_000
-      // relayTxGasCost = 1 gwei * 320_000 + 1 gwei * 650_000 = 320_000_000_000 + 650_000_000_000 = 970_000_000_000
-      // sendTxCost = 1 gwei * 21_000 = 21_000_000_000
-      // valueNet = 500_000_000_000 - 100_000_000_000 - 970_000_000_000 - 21_000_000_000
-      // valueNet = -591_000_000_000 (negative, but bigint so it wraps)
-      // Since this goes negative, let's use a different test case
-      expect(amount).toBeLessThanOrEqual(chickenService.extraGasFundGasUnits);
+      // feeGross = 500_000_000_000, costs = 991_000_000_000 → valueNet negative
+      await expect(chickenService.calculateSendAmount(params)).rejects.toThrow('extraGas valueNet is negative or zero');
     });
 
-    it('should handle zero fees scenario', async () => {
+    it('should throw when all fees and gas are zero (valueNet = 0)', async () => {
       const params = {
         withdrawnValueInEther: 1_000_000_000_000_000_000n,
         relayFeeBPS: 0n,
@@ -140,12 +132,24 @@ describe('ChickenService', () => {
         gasPrice: 0n,
       };
 
+      // valueNet = 0 → throws
+      await expect(chickenService.calculateSendAmount(params)).rejects.toThrow('extraGas valueNet is negative or zero');
+    });
+
+    it('should cap at extraGasFundGasUnits * gasPrice', async () => {
+      const params = {
+        withdrawnValueInEther: 1_000_000_000_000_000_000n,
+        relayFeeBPS: 1000n, // 10%
+        baseFeeBPS, // 0.1%
+        relayGasPrice: 50_000_000_000n, // 50 gwei (higher relay gas)
+        gasPrice: 20_000_000_000n, // 20 gwei (lower current gas)
+      };
+
       const amount = await chickenService.calculateSendAmount(params);
 
-      // feeGross = 0, relayerProfit = 0, relayTxGasCost = 0, sendTxCost = 0
-      // valueNet = 0
-      // amountToSend = min(650_000, 0) = 0
-      expect(amount).toBe(0n);
+      // extraGasFundCap = 1_000_000 * 20 gwei = 20_000_000_000_000_000
+      // valueNet is much larger, so it should hit the cap
+      expect(amount).toBe(chickenService.extraGasFundGasUnits * params.gasPrice);
     });
 
     it('should handle different relay and current gas prices', async () => {
@@ -169,6 +173,132 @@ describe('ChickenService', () => {
       // extraGasFundCap = 1_000_000 * 20 gwei = 20_000_000_000_000_000
       // amountToSend = min(20_000_000_000_000_000, 59_680_000_000_000_000) = 20_000_000_000_000_000 (capped)
       expect(amount).toBe(chickenService.extraGasFundGasUnits * params.gasPrice);
+    });
+  });
+
+  describe('relayer profitability with extraGas', () => {
+
+    // Simulates the full flow: quote → relay → send.
+    // The relayer receives feeGross in ETH-equivalent, pays gas + amountToSend.
+    // Net must always be >= relayerProfit (baseFeeBPS portion).
+    async function simulateRelay(params: {
+      withdrawnValueInEther: bigint,
+      gasPrice: bigint,
+      relayGasPrice: bigint,
+      nativeQuote: { num: bigint, den: bigint },
+    }) {
+      const { withdrawnValueInEther, gasPrice, relayGasPrice, nativeQuote } = params;
+
+      // 1. Quote: get the feeBPS the relayer would charge
+      const feeBPS = await chickenService.getFeeBPS(baseFeeBPS, withdrawnValueInEther, nativeQuote, gasPrice, true);
+
+      // 2. Calculate what the relayer sends to the user
+      const amountToSend = await chickenService.calculateSendAmount({
+        withdrawnValueInEther,
+        relayFeeBPS: feeBPS,
+        baseFeeBPS,
+        relayGasPrice,
+        gasPrice,
+      });
+
+      // 3. Compute relayer's balance sheet (all in wei)
+      const feeGross = withdrawnValueInEther * feeBPS / 10_000n;
+      const relayerProfit = withdrawnValueInEther * baseFeeBPS / 10_000n;
+      const relayTxGasCost = gasPrice * chickenService.extraGasTxGasUnits + relayGasPrice * chickenService.relayTxGasUnits;
+      const sendTxGasCost = gasPrice * 21_000n;
+
+      const relayerNet = feeGross - relayTxGasCost - sendTxGasCost - amountToSend;
+
+      return { feeBPS, amountToSend, feeGross, relayerProfit, relayerNet, relayTxGasCost, sendTxGasCost };
+    }
+
+    it('relayer retains at least baseFeeBPS profit — 1 ETH at 30 gwei', async () => {
+      const result = await simulateRelay({
+        withdrawnValueInEther: 1_000_000_000_000_000_000n, // 1 ETH
+        gasPrice: 30_000_000_000n,
+        relayGasPrice: 30_000_000_000n,
+        nativeQuote: { num: 1n, den: 1n },
+      });
+
+      expect(result.relayerNet).toBeGreaterThanOrEqual(result.relayerProfit);
+      expect(result.amountToSend).toBeGreaterThan(0n);
+    });
+
+    it('relayer retains at least baseFeeBPS profit — 10 ETH at 100 gwei', async () => {
+      const result = await simulateRelay({
+        withdrawnValueInEther: 10_000_000_000_000_000_000n, // 10 ETH
+        gasPrice: 100_000_000_000n,
+        relayGasPrice: 100_000_000_000n,
+        nativeQuote: { num: 1n, den: 1n },
+      });
+
+      expect(result.relayerNet).toBeGreaterThanOrEqual(result.relayerProfit);
+      expect(result.amountToSend).toBeGreaterThan(0n);
+    });
+
+    it('relayer retains at least baseFeeBPS profit — ERC20 token (1 token = 0.5 ETH)', async () => {
+      const result = await simulateRelay({
+        withdrawnValueInEther: 500_000_000_000_000_000n, // 0.5 ETH equivalent
+        gasPrice: 20_000_000_000n,
+        relayGasPrice: 20_000_000_000n,
+        nativeQuote: { num: 1n, den: 2n }, // 2 tokens per 1 ETH
+      });
+
+      expect(result.relayerNet).toBeGreaterThanOrEqual(result.relayerProfit);
+      expect(result.amountToSend).toBeGreaterThan(0n);
+    });
+
+    it('relayer retains at least baseFeeBPS profit — gas spike between quote and relay', async () => {
+      const result = await simulateRelay({
+        withdrawnValueInEther: 1_000_000_000_000_000_000n,
+        gasPrice: 30_000_000_000n, // 30 gwei at send time
+        relayGasPrice: 50_000_000_000n, // 50 gwei at relay time (spiked)
+        nativeQuote: { num: 1n, den: 1n },
+      });
+
+      expect(result.relayerNet).toBeGreaterThanOrEqual(result.relayerProfit);
+      expect(result.amountToSend).toBeGreaterThan(0n);
+    });
+
+    it('relayer profits more without extraGas than with it', async () => {
+      const gasPrice = 30_000_000_000n;
+      const withdrawnValueInEther = 1_000_000_000_000_000_000n;
+      const nativeQuote = { num: 1n, den: 1n };
+
+      const feeBPSWithExtra = await chickenService.getFeeBPS(baseFeeBPS, withdrawnValueInEther, nativeQuote, gasPrice, true);
+      const feeBPSWithout = await chickenService.getFeeBPS(baseFeeBPS, withdrawnValueInEther, nativeQuote, gasPrice, false);
+
+      // extraGas charges more BPS
+      expect(feeBPSWithExtra).toBeGreaterThan(feeBPSWithout);
+
+      // without extraGas: relayer keeps the full fee minus relay gas
+      const feeGrossWithout = withdrawnValueInEther * feeBPSWithout / 10_000n;
+      const relayGasCostOnly = gasPrice * chickenService.relayTxGasUnits;
+      const netWithout = feeGrossWithout - relayGasCostOnly;
+
+      // with extraGas: relayer keeps fee minus all gas minus amount sent
+      const result = await simulateRelay({
+        withdrawnValueInEther,
+        gasPrice,
+        relayGasPrice: gasPrice,
+        nativeQuote,
+      });
+
+      // both should be profitable
+      expect(netWithout).toBeGreaterThan(0n);
+      expect(result.relayerNet).toBeGreaterThan(0n);
+    });
+
+    it('user receives meaningful ETH with extraGas', async () => {
+      const result = await simulateRelay({
+        withdrawnValueInEther: 1_000_000_000_000_000_000n, // 1 ETH
+        gasPrice: 30_000_000_000n,
+        relayGasPrice: 30_000_000_000n,
+        nativeQuote: { num: 1n, den: 1n },
+      });
+
+      // User should receive at least 0.001 ETH (enough for a few txs)
+      expect(result.amountToSend).toBeGreaterThan(1_000_000_000_000_000n);
     });
   });
 });

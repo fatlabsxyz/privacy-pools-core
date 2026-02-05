@@ -2,7 +2,7 @@ import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../../src/app.js';
-import { ASSET_NOT_SUPPORTED_ERROR_BODY, INVALID_ERROR_BODY } from '../inputs/errors.js';
+import { ASSET_NOT_SUPPORTED_ERROR_BODY, EXTRA_GAS_NOT_SUPPORTED_ERROR_BODY, INVALID_ERROR_BODY } from '../inputs/errors.js';
 import { originalConfig } from '../inputs/originalConfig.js';
 import { getAddress } from 'viem';
 
@@ -125,6 +125,9 @@ describe('Quote Route - Chain ethereum (1)', () => {
       expect(response.body.detail).toBeDefined();
       expect(response.body.detail.relayTxCost).toBeDefined();
     });
+
+    // Note: Full extraGas quote for ERC20s requires external price data which is not available in test env
+    // The rejection path (extraGas without extra_gas config) is tested in crappy-path section
 
   });
 
@@ -337,6 +340,27 @@ describe('Quote Route - Chain ethereum (1)', () => {
       expect(response.body.message).toBe(INVALID_ERROR_BODY.message);
       expect(response.body.details.message).toBe(detailsMessage);
     });
+
+    it('rejects extraGas for asset without extra_gas enabled', async () => {
+      // DAI does not have extra_gas: true in config (defaults to false)
+      const DAI_ADDRESS = "0x6B175474E89094C44Da98b954EedeAC495271d0F";
+      const response = await request(app)
+        .post('/relayer/quote')
+        .send({
+          chainId: VALID_CHAIN_ID,
+          asset: DAI_ADDRESS,
+          extraGas: true,
+          amount: "1000000000000000000"
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.code).toBe(EXTRA_GAS_NOT_SUPPORTED_ERROR_BODY.code);
+      expect(response.body.message).toBe(EXTRA_GAS_NOT_SUPPORTED_ERROR_BODY.message);
+      expect(response.body.details).toContain('extraGas not enabled');
+    });
+
+    // Note: ERC20 quotes (even without extraGas) require external price data which is not available in test env
+    // The extraGas: false case for native tokens is implicitly tested in 'handles disabling extraGas for native asset'
 
   });
 });

@@ -17,3 +17,8 @@ export const QUOTER_ERROR_BODY = {
   code: "ASSET_NOT_SUPPORTED",
   message: "Asset not supported",
 }
+
+export const EXTRA_GAS_NOT_SUPPORTED_ERROR_BODY = {
+  code: "UNSUPPORTED_FEATURE",
+  message: "Extra gas is not supported",
+}

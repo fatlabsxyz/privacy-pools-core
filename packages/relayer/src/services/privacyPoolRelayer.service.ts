@@ -5,6 +5,7 @@ import { getAddress } from "viem";
 import { RelayerConfig } from "../config/index.js";
 import {
   BlockchainError,
+  ConfigError,
   RelayerError,
   WithdrawalValidationError,
   ZkError,
@@ -334,6 +335,12 @@ export class PrivacyPoolRelayer {
 
     // Get asset configuration for this chain and asset
     const assetConfig = await chain.assetConfig(assetAddress);
+
+    if (extraGas && !assetConfig.extra_gas) {
+      const error = `extraGas is not enabled for asset ${assetAddress} on chain ${chainId}`;
+      logger.error(error);
+      throw ConfigError.unsupportedAsset(error);
+    }
 
     if (wp.feeCommitment) {
 

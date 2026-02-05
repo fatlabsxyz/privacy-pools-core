@@ -52,13 +52,15 @@ export const chainMainnet =
         "asset_address": "0xdC035D45d973E3EC169d2276DDab16f1e407384F",
         "asset_name": "USDS",
         "fee_bps": "10",
-        "min_withdraw_amount": "0"
+        "min_withdraw_amount": "0",
+        "extra_gas": true
       },
       {
         "asset_address": "0xa3931d71877C0E7a3148CB7Eb4463524FEc27fbD",
         "asset_name": "sUSDS",
         "fee_bps": "10",
-        "min_withdraw_amount": "0"
+        "min_withdraw_amount": "0",
+        "extra_gas": true
       },
       {
         "asset_address": "0x6B175474E89094C44Da98b954EedeAC495271d0F",

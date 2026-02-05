@@ -4,6 +4,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import {
   RelayerConfig
 } from "../../config/index.js";
+import { QuoterError } from "../../exceptions/base.exception.js";
 import { QuoteRequest } from "../../middlewares/index.js";
 import { web3Provider } from "../../providers/index.js";
 import { quoteService } from "../../services/index.js";
@@ -46,6 +47,10 @@ export async function relayQuoteHandler(
 
     if (isNative(asset)) {
       extraGas = false;
+    }
+
+    if (extraGas && !assetConfig.extra_gas) {
+      return next(QuoterError.extraGasNotSupported(`extraGas not enabled for asset ${asset} on chain ${chainId}`));
     }
 
     let quote: QuoteFee;

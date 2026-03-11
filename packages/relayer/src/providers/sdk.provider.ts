@@ -13,15 +13,33 @@ import {
   WithdrawalProof,
   type Hash,
 } from "@0xbow/privacy-pools-core-sdk";
-import { abi as EntrypointRelayAbi } from "../abis/entrypoint.abi.js";
+import type { Account, Chain, Client, PublicActions, RpcSchema, Transport, WalletActions } from "viem";
 import { Address, createWalletClient, http, publicActions, TransactionReceipt } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { abi as EntrypointRelayAbi } from "../abis/entrypoint.abi.js";
 import { RelayerConfig } from "../config/index.js";
 import { ConfigError, RelayerError, SdkError } from "../exceptions/base.exception.js";
 import { WithdrawalPayload } from "../interfaces/relayer/request.js";
 import { ChainId } from "../types.js";
 import { SdkProviderInterface } from "../types/sdk.types.js";
 import { createChainObjectFromBrandedChainId } from "../utils.js";
-import { privateKeyToAccount } from "viem/accounts";
+
+/**
+ * A Viem type that represents a WalletClient that is extended with PublicActions
+ *
+ */
+export type WalletPublicClient<
+  transport extends Transport = Transport,
+  chain extends Chain | undefined = Chain | undefined,
+  account extends Account | undefined = Account | undefined,
+> = Client<
+  transport,
+  chain,
+  account,
+  RpcSchema,
+  PublicActions<transport, chain, account> & WalletActions<chain, account>
+>;
+
 
 /**
  * Class representing the SDK provider for interacting with Privacy Pool SDK.
@@ -38,7 +56,7 @@ export class SdkProvider implements SdkProviderInterface {
 
   }
 
-  async getSigner(chainId: ChainId) {
+  async getSigner(chainId: ChainId): Promise<WalletPublicClient> {
     const config = new RelayerConfig().chain(chainId);
     const chainObject = await createChainObjectFromBrandedChainId(chainId);
     const rpcUrl = await config.rpc_url();

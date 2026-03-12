@@ -3,6 +3,7 @@
  */
 
 import {
+  bigintToHex,
   calculateContext,
   Circuits,
   ContractInteractionsService,
@@ -12,13 +13,33 @@ import {
   WithdrawalProof,
   type Hash,
 } from "@0xbow/privacy-pools-core-sdk";
-import { Address } from "viem";
+import type { Account, Chain, Client, PublicActions, RpcSchema, Transport, WalletActions } from "viem";
+import { Address, createWalletClient, http, publicActions, TransactionReceipt } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { abi as EntrypointRelayAbi } from "../abis/entrypoint.abi.js";
 import { RelayerConfig } from "../config/index.js";
 import { ConfigError, RelayerError, SdkError } from "../exceptions/base.exception.js";
 import { WithdrawalPayload } from "../interfaces/relayer/request.js";
 import { ChainId } from "../types.js";
 import { SdkProviderInterface } from "../types/sdk.types.js";
 import { createChainObjectFromBrandedChainId } from "../utils.js";
+
+/**
+ * A Viem type that represents a WalletClient that is extended with PublicActions
+ *
+ */
+export type WalletPublicClient<
+  transport extends Transport = Transport,
+  chain extends Chain | undefined = Chain | undefined,
+  account extends Account | undefined = Account | undefined,
+> = Client<
+  transport,
+  chain,
+  account,
+  RpcSchema,
+  PublicActions<transport, chain, account> & WalletActions<chain, account>
+>;
+
 
 /**
  * Class representing the SDK provider for interacting with Privacy Pool SDK.
@@ -32,6 +53,20 @@ export class SdkProvider implements SdkProviderInterface {
    */
   constructor() {
     this.sdk = new PrivacyPoolSDK(new Circuits({ browser: false }));
+
+  }
+
+  async getSigner(chainId: ChainId): Promise<WalletPublicClient> {
+    const config = new RelayerConfig().chain(chainId);
+    const chainObject = await createChainObjectFromBrandedChainId(chainId);
+    const rpcUrl = await config.rpc_url();
+    const signerPrivateKey = await config.signerPrivateKey();
+    return createWalletClient({
+      chain: chainObject,
+      transport: http(rpcUrl),
+      account: privateKeyToAccount(signerPrivateKey),
+    })
+      .extend(publicActions);
   }
 
   /**
@@ -82,13 +117,31 @@ export class SdkProvider implements SdkProviderInterface {
   async broadcastWithdrawal(
     withdrawalPayload: WithdrawalPayload,
     chainId: ChainId,
-  ): Promise<{ hash: string; }> {
-    const contracts = await this.getContractsForChain(chainId);
-    return contracts.relay(
-      withdrawalPayload.withdrawal,
-      withdrawalPayload.proof,
-      withdrawalPayload.scope as Hash,
-    );
+  ): Promise<{ hash: string; receipt: TransactionReceipt; }> {
+    const config = new RelayerConfig().chain(chainId);
+
+    const { withdrawal, proof, scope } = withdrawalPayload;
+    const formattedProof = formatProof(proof);
+    const signer = await this.getSigner(chainId);
+    const entrypointAddress = await config.entrypointAddress();
+
+    const { request } = await signer.simulateContract({
+      address: entrypointAddress,
+      abi: [EntrypointRelayAbi],
+      functionName: "relay",
+      account: signer.account,
+      args: [withdrawal, formattedProof, scope],
+    });
+
+    const hash = await signer.writeContract({
+      ...request,
+      gas: request.gas ? request.gas * 11_000_000n / 10_000_000n : 800_000n,
+    });
+
+    const receipt = await signer.waitForTransactionReceipt({ hash });
+
+    return { hash, receipt };
+
   }
 
   /**
@@ -125,4 +178,29 @@ export class SdkProvider implements SdkProviderInterface {
       }
     }
   }
+}
+
+
+export function formatProof(proof: WithdrawalProof) {
+  return {
+    pA: [
+      bigintToHex(proof.proof.pi_a?.[0]),
+      bigintToHex(proof.proof.pi_a?.[1]),
+    ],
+    pB: [
+      [
+        bigintToHex(proof.proof.pi_b?.[0]?.[1]),
+        bigintToHex(proof.proof.pi_b?.[0]?.[0]),
+      ],
+      [
+        bigintToHex(proof.proof.pi_b?.[1]?.[1]),
+        bigintToHex(proof.proof.pi_b?.[1]?.[0]),
+      ],
+    ],
+    pC: [
+      bigintToHex(proof.proof.pi_c?.[0]),
+      bigintToHex(proof.proof.pi_c?.[1]),
+    ],
+    pubSignals: proof.publicSignals.map(bigintToHex),
+  };
 }

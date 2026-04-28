@@ -8,7 +8,6 @@ import { App } from 'supertest/types.js';
 import { QuoteResponse } from '../../src/quote/index.js';
 import { PrintableSignedFeeCommitment } from '../../src/interfaces/index.js';
 import { originalConfig } from '../inputs/originalConfig.js';
-import { getAddress } from 'viem';
 
 vi.mock('../../src/services/index.ts', async (ori) => {
   const mod = await ori(); // type is inferred
@@ -29,7 +28,7 @@ describe('Relay Route - Chain ethereum (1)', () => {
   const VALID_RECIPIENT = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
 
   const validRelayPayload = (withdrawalData: BigNumberish[], feeCommitment?: PrintableSignedFeeCommitment ) => {
-    let obj = {
+    const obj = {
       withdrawal: {
         processooor: "0x248be73ad9087517e4624c29ce4ac84a76c8b479",
         data: withdrawalData,  // encoded RelayData
@@ -99,7 +98,7 @@ describe('Relay Route - Chain ethereum (1)', () => {
 
     it<RelayContext>('should expect a withdrawal object', async ({quote}) => {
       const validPayload = validRelayPayload(quote.feeCommitment!.withdrawalData, quote.feeCommitment)
-      const { withdrawal, ...relayPayload} = validPayload;
+      const { withdrawal: _withdrawal, ...relayPayload} = validPayload;
 
       const res = await request(app)
         .post('/relayer/request')
@@ -116,7 +115,7 @@ describe('Relay Route - Chain ethereum (1)', () => {
     
     it<RelayContext>('should expect publicSignals field', async ({quote}) => {
       const validPayload = validRelayPayload(quote.feeCommitment!.withdrawalData, quote.feeCommitment)
-      const { publicSignals, ...relayPayload} = validPayload;
+      const { publicSignals: _publicSignals, ...relayPayload} = validPayload;
 
       const res = await request(app)
         .post('/relayer/request')
@@ -133,7 +132,7 @@ describe('Relay Route - Chain ethereum (1)', () => {
 
     it<RelayContext>('should expect proof field', async ({quote}) => {
       const validPayload = validRelayPayload(quote.feeCommitment!.withdrawalData, quote.feeCommitment)
-      const { proof, ...relayPayload} = validPayload;
+      const { proof: _proof, ...relayPayload} = validPayload;
 
       const res = await request(app)
         .post('/relayer/request')
@@ -150,7 +149,7 @@ describe('Relay Route - Chain ethereum (1)', () => {
 
     it<RelayContext>('should expect scope field', async ({quote}) => {
       const validPayload = validRelayPayload(quote.feeCommitment!.withdrawalData, quote.feeCommitment)
-      const { scope, ...relayPayload} = validPayload;
+      const { scope: _scope, ...relayPayload} = validPayload;
 
       const res = await request(app)
         .post('/relayer/request')

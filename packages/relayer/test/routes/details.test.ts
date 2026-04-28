@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
-import { ASSET_NOT_SUPPORTED_ERROR_BODY, INVALID_ERROR_BODY, INVALID_ERROR_PARAMS } from '../inputs/errors.js';
+import { ASSET_NOT_SUPPORTED_ERROR_BODY, INVALID_ERROR_PARAMS } from '../inputs/errors.js';
 import { App } from 'supertest/types.js';
 import { createApp } from '../../src/app.js';
 import { originalConfig } from '../inputs/originalConfig.js';

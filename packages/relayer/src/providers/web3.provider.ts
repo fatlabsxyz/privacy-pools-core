@@ -1,4 +1,4 @@
-import { Address, createPublicClient, createWalletClient, Hash, Hex, http, PublicClient, verifyTypedData, WalletClient } from "viem";
+import { Address, createPublicClient, createWalletClient, Hash, http, PublicClient, verifyTypedData, WalletClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { RelayerConfig } from "../config/index.js";
 import { FeeCommitment } from "../interfaces/relayer/common.js";

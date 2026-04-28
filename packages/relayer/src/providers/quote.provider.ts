@@ -1,6 +1,6 @@
 import { Address } from "viem";
 import { uniswapProvider, cowProvider } from "./index.js";
-import { FRAXUSD_ADDRESS, FXUSD_ADDRESS, isIlliquidStableCoin, WOETH_ADDRESS } from "../config/index.js";
+import { isIlliquidStableCoin, WOETH_ADDRESS } from "../config/index.js";
 import { ChainId } from "../types.js";
 import { createModuleLogger } from "../logger/index.js";
 import { QuoterError } from "../exceptions/base.exception.js";

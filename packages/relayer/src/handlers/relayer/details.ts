@@ -1,6 +1,6 @@
 import { NextFunction, Response } from "express";
 import { RelayerConfig } from "../../config/index.js";
-import { RelayerError } from "../../exceptions/base.exception.js";
+
 import { DetailsRequest } from "../../middlewares/index.js";
 import { DetailsMarshall } from "../../types.js";
 

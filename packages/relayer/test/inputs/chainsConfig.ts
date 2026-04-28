@@ -1,4 +1,4 @@
-import { RawTestChainConfig, TestChainConfig, zTestChainConfig } from "./configTypes";
+import { TestChainConfig, zTestChainConfig } from "./configTypes";
 
 export type TestConfigSetupParams = {
   chainConfig: object,

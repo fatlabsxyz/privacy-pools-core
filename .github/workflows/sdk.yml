@@ -7,6 +7,9 @@ on:
       - ".github/workflows/sdk.yml"
   push:
     branches: [main, dev]
+    paths:
+      - "packages/sdk/**"
+      - ".github/workflows/sdk.yml"
 
 concurrency:
   group: ${{github.workflow}}-${{github.ref}}

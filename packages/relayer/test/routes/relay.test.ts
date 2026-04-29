@@ -12,7 +12,7 @@ describe('Relay Route - Chain ethereum (1)', () => {
 
   const VALID_CHAIN_ID = chainConfig.chain_id;
 
-  const validRelayPayload = (withdrawalData: bigint[]) => ({
+  const validRelayPayload = (withdrawalData: string) => ({
     withdrawal: {
       processooor: "0x248be73ad9087517e4624c29ce4ac84a76c8b479",
       data: withdrawalData,
@@ -54,7 +54,7 @@ describe('Relay Route - Chain ethereum (1)', () => {
       expect(response.status).toBe(400);
     });
  
-    const DUMMY_WITHDRAWAL_DATA = [1n, 2n, 3n];
+    const DUMMY_WITHDRAWAL_DATA = "0xabcdef";
 
     it('should expect a withdrawal object', async () => {
       const validPayload = validRelayPayload(DUMMY_WITHDRAWAL_DATA)

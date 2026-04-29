@@ -1,56 +1,27 @@
 import request from 'supertest';
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.js';
-import { privacyPoolRelayer } from '../../src/services/index.js';
 import { INVALID_ERROR_BODY } from '../inputs/errors.js';
 import { relayProof } from '../inputs/proof.js';
 import { App } from 'supertest/types.js';
-import { QuoteResponse } from '../../src/quote/index.js';
-import { PrintableSignedFeeCommitment } from '../../src/interfaces/index.js';
 import { originalConfig } from '../inputs/originalConfig.js';
-
-vi.mock('../../src/services/index.ts', async (ori) => {
-  const mod = await ori(); // type is inferred
-  return {
-    ...mod,
-    privacyPoolRelayer: {
-      handleRelay: vi.fn().mockResolvedValue({ value: "resolved" })
-    },
-  };
-});
 
 const chainConfig = originalConfig.chains[0]!;
 
 describe('Relay Route - Chain ethereum (1)', () => {
 
   const VALID_CHAIN_ID = chainConfig.chain_id;
-  const VALID_ASSET = chainConfig.supported_assets[0]!;
-  const VALID_RECIPIENT = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
 
-  const validRelayPayload = (withdrawalData: BigNumberish[], feeCommitment?: PrintableSignedFeeCommitment ) => {
-    const obj = {
-      withdrawal: {
-        processooor: "0x248be73ad9087517e4624c29ce4ac84a76c8b479",
-        data: withdrawalData,  // encoded RelayData
-      },
-      publicSignals: relayProof.publicSignals,
-      proof: relayProof.proof,
-      scope: "914252416149542018943135422021350408877910118150300123819183553188073868709",
-      chainId: VALID_CHAIN_ID,
-    };
-
-    if (feeCommitment) { 
-        return { ...obj, feeCommitment};
-    } else { return obj; }
-  };
-
-  const VALID_QUOTE_PAYLOAD = {
+  const validRelayPayload = (withdrawalData: bigint[]) => ({
+    withdrawal: {
+      processooor: "0x248be73ad9087517e4624c29ce4ac84a76c8b479",
+      data: withdrawalData,
+    },
+    publicSignals: relayProof.publicSignals,
+    proof: relayProof.proof,
+    scope: "914252416149542018943135422021350408877910118150300123819183553188073868709",
     chainId: VALID_CHAIN_ID,
-    amount: "10000",
-    asset: VALID_ASSET.asset_address,
-    recipient: VALID_RECIPIENT,
-    extraGas: true
-  };
+  });
   let app: App;
 
   beforeAll(async () => {
@@ -83,21 +54,10 @@ describe('Relay Route - Chain ethereum (1)', () => {
       expect(response.status).toBe(400);
     });
  
-    type RelayContext = {
-      quote: QuoteResponse
-    }
+    const DUMMY_WITHDRAWAL_DATA = [1n, 2n, 3n];
 
-    beforeEach<RelayContext>(async (context: RelayContext) => {
-      const res = await request(app)
-        .post('/relayer/quote')
-        .set('Content-Type', 'application/json')
-        .send(VALID_QUOTE_PAYLOAD);
-      context.quote = res.body as QuoteResponse;
-    })
-
-
-    it<RelayContext>('should expect a withdrawal object', async ({quote}) => {
-      const validPayload = validRelayPayload(quote.feeCommitment!.withdrawalData, quote.feeCommitment)
+    it('should expect a withdrawal object', async () => {
+      const validPayload = validRelayPayload(DUMMY_WITHDRAWAL_DATA)
       const { withdrawal: _withdrawal, ...relayPayload} = validPayload;
 
       const res = await request(app)
@@ -112,9 +72,9 @@ describe('Relay Route - Chain ethereum (1)', () => {
       expect(res.body.message).toBe(INVALID_ERROR_BODY.message);
       expect(res.body.details.message).toBe(detailsMessage);
     });
-    
-    it<RelayContext>('should expect publicSignals field', async ({quote}) => {
-      const validPayload = validRelayPayload(quote.feeCommitment!.withdrawalData, quote.feeCommitment)
+
+    it('should expect publicSignals field', async () => {
+      const validPayload = validRelayPayload(DUMMY_WITHDRAWAL_DATA)
       const { publicSignals: _publicSignals, ...relayPayload} = validPayload;
 
       const res = await request(app)
@@ -130,8 +90,8 @@ describe('Relay Route - Chain ethereum (1)', () => {
       expect(res.body.details.message).toBe(detailsMessage);
     });
 
-    it<RelayContext>('should expect proof field', async ({quote}) => {
-      const validPayload = validRelayPayload(quote.feeCommitment!.withdrawalData, quote.feeCommitment)
+    it('should expect proof field', async () => {
+      const validPayload = validRelayPayload(DUMMY_WITHDRAWAL_DATA)
       const { proof: _proof, ...relayPayload} = validPayload;
 
       const res = await request(app)
@@ -147,8 +107,8 @@ describe('Relay Route - Chain ethereum (1)', () => {
       expect(res.body.details.message).toBe(detailsMessage);
     });
 
-    it<RelayContext>('should expect scope field', async ({quote}) => {
-      const validPayload = validRelayPayload(quote.feeCommitment!.withdrawalData, quote.feeCommitment)
+    it('should expect scope field', async () => {
+      const validPayload = validRelayPayload(DUMMY_WITHDRAWAL_DATA)
       const { scope: _scope, ...relayPayload} = validPayload;
 
       const res = await request(app)
@@ -164,10 +124,10 @@ describe('Relay Route - Chain ethereum (1)', () => {
       expect(res.body.details.message).toBe(detailsMessage);
     });
 
-    it<RelayContext>('should expect withdrawal processor field', async ({quote}) => {
-      const validPayload = validRelayPayload(quote.feeCommitment!.withdrawalData, quote.feeCommitment)
+    it('should expect withdrawal processor field', async () => {
+      const validPayload = validRelayPayload(DUMMY_WITHDRAWAL_DATA)
       const { withdrawal: {data, processooor: _}, ...payload} = validPayload;
-      const relayPayload = { ...payload, withdrawal: {data}} 
+      const relayPayload = { ...payload, withdrawal: {data}}
 
       const res = await request(app)
         .post('/relayer/request')
@@ -182,10 +142,10 @@ describe('Relay Route - Chain ethereum (1)', () => {
       expect(res.body.details.message).toBe(detailsMessage);
     });
 
-    it<RelayContext>('should expect withdrawal data field', async ({quote}) => {
-      const validPayload = validRelayPayload(quote.feeCommitment!.withdrawalData, quote.feeCommitment)
+    it('should expect withdrawal data field', async () => {
+      const validPayload = validRelayPayload(DUMMY_WITHDRAWAL_DATA)
       const { withdrawal: {data: _, processooor}, ...payload} = validPayload;
-      const relayPayload = { ...payload, withdrawal: {processooor}} 
+      const relayPayload = { ...payload, withdrawal: {processooor}}
 
       const res = await request(app)
         .post('/relayer/request')
@@ -198,32 +158,6 @@ describe('Relay Route - Chain ethereum (1)', () => {
       expect(res.body.code).toBe(INVALID_ERROR_BODY.code);
       expect(res.body.message).toBe(INVALID_ERROR_BODY.message);
       expect(res.body.details.message).toBe(detailsMessage);
-    });
-
-    describe.skip('happy-path', () => {
-      it<RelayContext>('should handle relay with full payload', async ({quote}) => {
-        const relayPayload = validRelayPayload(quote.feeCommitment!.withdrawalData, quote.feeCommitment)
-
-        const relay = await request(app)
-          .post('/relayer/request')
-          .set('Content-Type', 'application/json')
-          .send(relayPayload);
-
-        expect(privacyPoolRelayer.handleRelay).toBeCalled();
-        expect(relay.body).toStrictEqual({ value: "resolved" });
-
-      });
-
-      it<RelayContext>('should handle relay without feeCommitment', async ({quote}) => {
-        const relayPayload = validRelayPayload(quote.feeCommitment!.withdrawalData)
-
-        const res = await request(app)
-          .post('/relayer/request')
-          .set('Content-Type', 'application/json')
-          .send(relayPayload);
-
-        expect(res.status).toBe(200);
-      });
     });
   });
 });

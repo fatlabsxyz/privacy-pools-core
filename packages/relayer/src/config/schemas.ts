@@ -20,6 +20,7 @@ export const zAssetConfig = z.object({
   asset_name: z.string(),
   fee_bps: zFeeBps,
   min_withdraw_amount: zWithdrawAmount,
+  extra_gas: z.boolean().optional().default(false),
 });
 
 // Native currency configuration schema

@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, http, PublicClient, verifyTypedData, WalletClient } from "viem";
+import { Address, createPublicClient, createWalletClient, Hash, http, PublicClient, verifyTypedData, WalletClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { RelayerConfig } from "../config/index.js";
 import { FeeCommitment } from "../interfaces/relayer/common.js";
@@ -108,5 +108,21 @@ export class Web3Provider implements IWeb3Provider {
       signature: signedRelayerCommitment
     });
   }
+
+    async sendExtraGasTransaction(chainId: ChainId, to: Address, value: bigint): Promise<Hash> {
+        const relayer = await this.signer(chainId); 
+        if (!relayer.account) {
+          const error = "Send error: Signer account not found";
+          throw Error(error);
+        }
+    
+        const sendParams = {
+          to,
+          value,
+          account: relayer.account,
+          chain: relayer.chain
+        };
+        return relayer.sendTransaction(sendParams)
+    }
 
 }

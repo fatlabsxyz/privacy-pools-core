@@ -83,7 +83,7 @@ export function parseSignals(
   };
 }
 
-export async function createChainObjectFromBrandedChainId(chainId: ChainId) {
+export async function createChainObjectFromBrandedChainId(chainId: ChainId): Promise<Chain> {
   const config = new RelayerConfig().chain(chainId);
   const [chain_name, rpc_url] = await Promise.all([
     config.chain_name(),
@@ -131,4 +131,12 @@ export function isViemError(error: unknown): error is ViemError {
 
 export function isNative(asset: `0x${string}`) {
   return asset.toLowerCase() === "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+}
+
+export function min(a: bigint, b: bigint): bigint {
+  return a < b ? a : b;
+}
+
+export function max(a: bigint, b: bigint): bigint {
+  return a > b ? a : b;
 }

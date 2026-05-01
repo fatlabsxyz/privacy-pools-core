@@ -1,6 +1,6 @@
 import { NextFunction, Response } from "express";
-import { isExceptionToken, RelayerConfig } from "../../config/index.js";
-import { ConfigError, RelayerError, ValidationError } from "../../exceptions/base.exception.js";
+import { RelayerConfig } from "../../config/index.js";
+import { ConfigError, ValidationError } from "../../exceptions/base.exception.js";
 import {
   RelayerResponse,
   WithdrawalPayload,
@@ -78,11 +78,6 @@ export async function relayRequestHandler(
     const maxGasPrice = await chain.max_gas_price();
     const currentGasPrice = await web3Provider.getGasPrice(chainId);
 
-    // XXX: Block extraGas for EXCEPTION_TOKENS
-    if (withdrawalPayload.feeCommitment?.extraGas && isExceptionToken(withdrawalPayload.feeCommitment?.asset)) {
-      return next(RelayerError.assetNotSupported(`Extra gas feature not supported for ${withdrawalPayload.feeCommitment?.asset}`));
-    }
-
     if (maxGasPrice !== undefined && currentGasPrice > maxGasPrice) {
       return next(ConfigError.maxGasPrice(`Current gas price ${currentGasPrice} is higher than max price ${maxGasPrice}`));
     }
@@ -94,7 +89,7 @@ export async function relayRequestHandler(
 
     const { recipient, relayFeeBPS } = decodeWithdrawalData(withdrawalPayload.withdrawal.data);
     const feeCommitment = withdrawalPayload.feeCommitment!;
-    const [assetConfig, _] = await chain.assetConfig(feeCommitment.asset);
+    const assetConfig = await chain.assetConfig(feeCommitment.asset);
 
     const logPayload = {
       chain_id: chainId,
@@ -106,7 +101,7 @@ export async function relayRequestHandler(
 
     logger.info("Request generated", logPayload);
 
-    if (relayFeeBPS >= assetConfig!.fee_bps * 2n) {
+    if (relayFeeBPS >= assetConfig.fee_bps * 2n) {
       logger.warn(
         "Generated quote might be too high for requested amount",
         logPayload

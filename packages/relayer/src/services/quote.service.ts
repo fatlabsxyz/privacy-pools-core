@@ -1,6 +1,7 @@
-import { Address } from "viem";
+import { Address, getAddress } from "viem";
 import { quoteProvider, web3Provider } from "../providers/index.js";
 import { ChainId } from "../types.js";
+import { ChickenService } from "./chicken.service.js";
 
 interface QuoteFeeBPSParams {
   chainId: ChainId,
@@ -10,67 +11,44 @@ interface QuoteFeeBPSParams {
   extraGas: boolean;
 };
 
-const NativeAddress = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
-const NativeArbitrumAddress = "0x4200000000000000000000000000000000000006";
+const NativeAddress = getAddress("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE");
+const NativeWETHAddress = getAddress("0x4200000000000000000000000000000000000006");
 
 export interface QuoteFee {
   feeBPS: bigint;
   path: (string | number)[];
   gasPrice: bigint;
-  relayTxCost: bigint;
-  extraGasTxCost?: bigint;
-  extraGasFundAmount?: bigint;
+  relayTxGasUnits: bigint;
+  extraGasTxGasUnits?: bigint;
+  extraGasFundGasUnits?: bigint;
   out?: bigint;
 };
 
 export class QuoteService {
 
-  readonly relayTxCost: bigint;
-  readonly extraGasTxCost: bigint;
-  readonly extraGasFundAmount: bigint;
-
-  constructor() {
-    // a typical withdrawal costs between 450k-650k gas
-    this.relayTxCost = 650_000n;
-    // approximate value of a uniswap Router call. Can vary greatly if doing multi-hop swaps.
-    this.extraGasTxCost = 320_000n;
-    // this gas will be transformed into equivalent native units at the time of the fund swap.
-    this.extraGasFundAmount = 600_000n;
-  }
-
-  async netFeeBPSNative(baseFee: bigint, balance: bigint, nativeQuote: { num: bigint, den: bigint; }, gasPrice: bigint, extraGasUnits: bigint): Promise<bigint> {
-    const totalGasUnits = this.relayTxCost + extraGasUnits;
-    const nativeCosts = (1n * gasPrice * totalGasUnits);
-    return baseFee + nativeQuote.den * 10_000n * nativeCosts / balance / nativeQuote.num;
-  }
-
-  async quoteFeeBPSNative(quoteParams: QuoteFeeBPSParams): Promise<QuoteFee> {
+  async quote(quoteParams: QuoteFeeBPSParams): Promise<QuoteFee> {
     const { chainId, assetAddress, amountIn, baseFeeBPS, extraGas } = quoteParams;
-
-    const gasPrice = await web3Provider.getGasPrice(chainId);
-
-    const EXTRA_GAS_AMOUNT = this.extraGasTxCost + this.extraGasFundAmount;
-    const extraGasUnits = extraGas ? EXTRA_GAS_AMOUNT : 0n;
-    const extraGasDetail = extraGas ? { extraGasTxCost: this.extraGasTxCost, extraGasFundAmount: this.extraGasFundAmount } : undefined;
+    const chickenService = new ChickenService();
 
     let quote: { num: bigint, den: bigint; path: (string | number)[]; };
-    if (assetAddress.toLowerCase() === NativeAddress.toLowerCase()) {
+    if (assetAddress === NativeAddress) {
       quote = { num: 1n, den: 1n, path: [] };
-    } else if (assetAddress.toLowerCase() === NativeArbitrumAddress.toLowerCase()) {
+    } else if (assetAddress === NativeWETHAddress) {
       quote = { num: 1n, den: 1n, path: [] };          // XXX: for 0x420 we treat it as ETH
     } else {
       quote = await quoteProvider.quoteNativeTokenInERC20(chainId, assetAddress, amountIn);
     }
 
-    const feeBPS = await this.netFeeBPSNative(baseFeeBPS, amountIn, quote, gasPrice, extraGasUnits);
+    const gasPrice = await web3Provider.getGasPrice(chainId);
 
     return {
-      feeBPS,
-      gasPrice,
-      relayTxCost: this.relayTxCost,
-      ...extraGasDetail,
-      path: quote.path,
-      out: quote.num
+        feeBPS: await chickenService.getFeeBPS(baseFeeBPS, amountIn, quote, gasPrice, extraGas),
+        gasPrice,
+        relayTxGasUnits: chickenService.relayTxGasUnits,
+        extraGasFundGasUnits: extraGas ? chickenService.extraGasFundGasUnits: undefined,
+        extraGasTxGasUnits: extraGas ? chickenService.extraGasTxGasUnits: undefined,
+        path: quote.path,
+        out: quote.num
     };
   }
 

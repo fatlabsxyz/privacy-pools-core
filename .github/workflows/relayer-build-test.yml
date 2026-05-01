@@ -29,7 +29,7 @@ jobs:
       - name: Use Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20.x
+          node-version: 22.x
           cache: "yarn"
 
       - name: Install dependencies
@@ -56,7 +56,7 @@ jobs:
       - name: Use Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20.x
+          node-version: 22.x
           cache: "yarn"
 
       - name: Install dependencies
@@ -64,3 +64,5 @@ jobs:
 
       - name: Run tests with coverage
         run: yarn test:cov
+        env:
+          EVM_MAINNET_RPC_URL: ${{ secrets.EVM_MAINNET_RPC_URL }}

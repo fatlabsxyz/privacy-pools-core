@@ -1,6 +1,6 @@
 import { NextFunction, Response } from "express";
 import { RelayerConfig } from "../../config/index.js";
-import { RelayerError } from "../../exceptions/base.exception.js";
+
 import { DetailsRequest } from "../../middlewares/index.js";
 import { DetailsMarshall } from "../../types.js";
 
@@ -24,32 +24,34 @@ export async function relayerDetailsHandler(
 
     const chain = new RelayerConfig().chain(chainId);
 
-    const feeReceiverAddress = await chain.feeReceiverAddress();
-
-    const [assetConfig, error] = await chain.assetConfig(assetAddress);
-
-    if (error) {
-      return next(RelayerError.assetNotSupported({
-        message: `Asset ${assetAddress} for chain ${chainId} is not supported`
-      }));
-    }
+    const [
+        {
+            fee_bps: feeBPS, 
+            min_withdraw_amount: minWithdrawAmount
+        },
+        feeReceiverAddress,
+        maxGasPrice 
+    ] = await Promise.all([
+        chain.assetConfig(assetAddress),
+        chain.feeReceiverAddress(),
+        chain.max_gas_price(),
+    ]);
 
     res.status(200).json(
       res.locals.marshalResponse(
         new DetailsMarshall({
-          feeBPS: assetConfig!.fee_bps,
+          feeBPS,
           feeReceiverAddress,
           chainId,
-          maxGasPrice: await chain.max_gas_price(),
-          assetAddress: assetAddress,
-          minWithdrawAmount: assetConfig!.min_withdraw_amount
+          maxGasPrice,
+          assetAddress,
+          minWithdrawAmount
         })
       )
     );
 
     next();
   } catch (error) {
-    console.error(error);
     next(error);
   }
 }

@@ -2,11 +2,9 @@ import { NextFunction, Response } from "express";
 import { Address, getAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
-  isExceptionToken,
   RelayerConfig
 } from "../../config/index.js";
 import { QuoterError } from "../../exceptions/base.exception.js";
-import { createModuleLogger } from "../../logger/index.js";
 import { QuoteRequest } from "../../middlewares/index.js";
 import { web3Provider } from "../../providers/index.js";
 import { quoteService } from "../../services/index.js";
@@ -16,6 +14,7 @@ import {
   encodeWithdrawalData,
   isNative
 } from "../../utils.js";
+import { createModuleLogger } from "../../logger/index.js";
 
 // const TIME_20_SECS = 20 * 1000;
 const TIME_60_SECS = 60 * 1000;
@@ -33,34 +32,30 @@ export async function relayQuoteHandler(
     const amountIn = req.body.amount;
     const asset = req.body.asset;
     let extraGas = Boolean(req.body.extraGas);
+    const recipient = req.body.recipient ? req.body.recipient : undefined;
+ 
+    logger.info("Quote generated", {
+        chainId,
+        amountIn,
+        asset,
+        extraGas,
+        recipient
+    });
 
     const chain = new RelayerConfig().chain(chainId);
-    const [assetConfig, _] = await chain.assetConfig(asset);
-    if (assetConfig === undefined)
-      return next(QuoterError.assetNotSupported(`Asset ${asset} for chain ${chainId} is not supported`));
+    const assetConfig = await chain.assetConfig(asset);
 
     if (isNative(asset)) {
       extraGas = false;
     }
 
-    // XXX: Block extraGas for EXCEPTION_TOKENS
-    if (extraGas && isExceptionToken(asset)) {
-      return next(
-        QuoterError.extraGasNotSupported(
-          `Extra gas feature not supported for ${asset}`,
-        ),
-      );
-    } else if (extraGas && chainId == 42161) {
-      return next(
-        QuoterError.extraGasNotSupported(
-          `Extra gas feature not supported for chain 42161`,
-        ),
-      );
+    if (extraGas && !assetConfig.extra_gas) {
+      return next(QuoterError.extraGasNotSupported(`extraGas not enabled for asset ${asset} on chain ${chainId}`));
     }
 
     let quote: QuoteFee;
     try {
-      quote = await quoteService.quoteFeeBPSNative({
+      quote = await quoteService.quote({
         chainId,
         amountIn,
         assetAddress: asset,
@@ -75,21 +70,19 @@ export async function relayQuoteHandler(
     const {
       feeBPS,
       gasPrice,
-      extraGasFundAmount,
-      relayTxCost,
-      extraGasTxCost
+      relayTxGasUnits,
+      extraGasTxGasUnits,
+      extraGasFundGasUnits,
+      out: value_out
     } = quote;
 
-    const recipient = req.body.recipient
-      ? getAddress(req.body.recipient.toString())
-      : undefined;
     const detail = {
-      relayTxCost: { gas: relayTxCost, eth: relayTxCost * gasPrice },
-      extraGasFundAmount: extraGasFundAmount
-        ? { gas: extraGasFundAmount, eth: extraGasFundAmount * gasPrice }
+      relayTxCost: { gas: relayTxGasUnits, eth: relayTxGasUnits * gasPrice },
+      extraGasFundAmount: extraGasFundGasUnits
+        ? { gas: extraGasFundGasUnits, eth: extraGasFundGasUnits * gasPrice }
         : undefined,
-      extraGasTxCost: extraGasTxCost
-        ? { gas: extraGasTxCost, eth: extraGasTxCost * gasPrice }
+      extraGasTxCost: extraGasTxGasUnits
+        ? { gas: extraGasTxGasUnits, eth: extraGasTxGasUnits * gasPrice }
         : undefined,
     };
 
@@ -147,7 +140,7 @@ export async function relayQuoteHandler(
         asset,
         gas_price: gasPrice,
         value_in: amountIn,
-        value_out: quote.out!,
+        value_out,
         detail,
         fee_bps: feeBPS,
         base_fee_bps: assetConfig.fee_bps
@@ -165,7 +158,6 @@ export async function relayQuoteHandler(
 
     res.status(200).json(res.locals.marshalResponse(quoteResponse));
   } catch (error) {
-    console.error(error);
     next(error);
   }
 }

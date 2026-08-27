@@ -16,8 +16,9 @@ import {
 import type { Account, Chain, Client, PublicActions, RpcSchema, Transport, WalletActions } from "viem";
 import { Address, createWalletClient, http, publicActions, TransactionReceipt } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { abi as EntrypointRelayAbi } from "../abis/entrypoint.abi.js";
+import { abi as EntrypointRelayAbi, assetConfigAbi } from "../abis/entrypoint.abi.js";
 import { RelayerConfig } from "../config/index.js";
+import { Web3Provider } from "./web3.provider.js";
 import { ConfigError, RelayerError, SdkError } from "../exceptions/base.exception.js";
 import { WithdrawalPayload } from "../interfaces/relayer/request.js";
 import { ChainId } from "../types.js";
@@ -44,16 +45,27 @@ export type WalletPublicClient<
 /**
  * Class representing the SDK provider for interacting with Privacy Pool SDK.
  */
+export interface EntrypointAssetConfig {
+  pool: Address;
+  minimumDepositAmount: bigint;
+  vettingFeeBPS: bigint;
+  maxRelayFeeBPS: bigint;
+}
+
+/** How long an on-chain asset config is served from cache. It only changes on owner action. */
+const ASSET_CONFIG_CACHE_TTL_MS = 60_000;
+
 export class SdkProvider implements SdkProviderInterface {
   /** Instance of the PrivacyPoolSDK. */
   private sdk: PrivacyPoolSDK;
+  private assetConfigCache: Map<string, { config: EntrypointAssetConfig; fetchedAt: number; }>;
 
   /**
    * Initializes a new instance of the SDK provider.
    */
   constructor() {
     this.sdk = new PrivacyPoolSDK(new Circuits({ browser: false }));
-
+    this.assetConfigCache = new Map();
   }
 
   async getSigner(chainId: ChainId): Promise<WalletPublicClient> {
@@ -162,6 +174,51 @@ export class SdkProvider implements SdkProviderInterface {
    * @param {ChainId} chainId - The chain ID.
    * @returns {Promise<{ poolAddress: Address; assetAddress: Address; }>} - A promise resolving to the asset address.
    */
+  /**
+   * Fetches the on-chain asset configuration from the Entrypoint (pool address,
+   * minimum deposit, vetting fee and max relay fee), cached for a short TTL.
+   *
+   * @param {ChainId} chainId - The chain ID.
+   * @param {Address} assetAddress - The asset contract address.
+   * @returns {Promise<EntrypointAssetConfig>} - The Entrypoint's config for the asset.
+   */
+  async getAssetConfig(
+    chainId: ChainId,
+    assetAddress: Address,
+  ): Promise<EntrypointAssetConfig> {
+    const cacheKey = `${chainId}:${assetAddress.toLowerCase()}`;
+    const cached = this.assetConfigCache.get(cacheKey);
+    if (cached && Date.now() - cached.fetchedAt < ASSET_CONFIG_CACHE_TTL_MS) {
+      return cached.config;
+    }
+
+    const chainConfig = new RelayerConfig().chain(chainId);
+    const entrypointAddress = await chainConfig.entrypointAddress();
+    const client = await new Web3Provider().client(chainId);
+
+    let pool: Address, minimumDepositAmount: bigint, vettingFeeBPS: bigint, maxRelayFeeBPS: bigint;
+    try {
+      [pool, minimumDepositAmount, vettingFeeBPS, maxRelayFeeBPS] = await client.readContract({
+        address: entrypointAddress,
+        abi: assetConfigAbi,
+        functionName: "assetConfig",
+        args: [assetAddress],
+      });
+    } catch (error) {
+      throw SdkError.assetConfigError(error instanceof Error ? error : new Error(String(error)));
+    }
+
+    // An unregistered asset resolves to an all-zero config; surface it instead of
+    // letting a maxRelayFeeBPS of 0 reject every fee downstream.
+    if (pool === "0x0000000000000000000000000000000000000000") {
+      throw SdkError.assetConfigError(new Error(`Asset ${assetAddress} is not registered on Entrypoint ${entrypointAddress}`));
+    }
+
+    const config: EntrypointAssetConfig = { pool, minimumDepositAmount, vettingFeeBPS, maxRelayFeeBPS };
+    this.assetConfigCache.set(cacheKey, { config, fetchedAt: Date.now() });
+    return config;
+  }
+
   async scopeData(
     scope: bigint,
     chainId: ChainId,

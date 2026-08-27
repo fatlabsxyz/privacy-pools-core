@@ -293,6 +293,15 @@ export class PrivacyPoolRelayer {
       throw WithdrawalValidationError.assetNotSupported(error);
     }
 
+    // The Entrypoint reverts with RelayFeeGreaterThanMax past this bound; reject
+    // here instead of burning gas on a relay tx that cannot succeed.
+    const { maxRelayFeeBPS } = await this.sdkProvider.getAssetConfig(chainId, assetAddress);
+    if (relayFeeBPS > maxRelayFeeBPS) {
+      throw WithdrawalValidationError.feeTooHigh(
+        `Relay fee ${relayFeeBPS} BPS exceeds pool maximum ${maxRelayFeeBPS} BPS for asset ${assetAddress}`,
+      );
+    }
+
     if (wp.feeCommitment) {
 
       if (wp.feeCommitment.asset != assetAddress) {

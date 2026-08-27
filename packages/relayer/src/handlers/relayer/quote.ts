@@ -8,7 +8,7 @@ import {
 import { QuoterError } from "../../exceptions/base.exception.js";
 import { createModuleLogger } from "../../logger/index.js";
 import { QuoteRequest } from "../../middlewares/index.js";
-import { web3Provider } from "../../providers/index.js";
+import { sdkProvider, web3Provider } from "../../providers/index.js";
 import { quoteService } from "../../services/index.js";
 import { QuoteFee } from "../../services/quote.service.js";
 import { QuoteMarshall } from "../../types.js";
@@ -79,6 +79,24 @@ export async function relayQuoteHandler(
       relayTxCost,
       extraGasTxCost
     } = quote;
+
+    // The Entrypoint reverts any relay whose fee exceeds the pool's maxRelayFeeBPS,
+    // so refuse to quote (and sign a commitment for) a fee that can never be relayed.
+    const { maxRelayFeeBPS } = await sdkProvider.getAssetConfig(chainId, asset);
+    if (feeBPS > maxRelayFeeBPS) {
+      logger.warn("Quoted fee exceeds pool's max relay fee", {
+        chain_id: chainId,
+        asset,
+        amount_in: amountIn.toString(),
+        fee_bps: feeBPS.toString(),
+        max_relay_fee_bps: maxRelayFeeBPS.toString(),
+      });
+      return next(
+        QuoterError.feeExceedsPoolMax(
+          `Quoted fee ${feeBPS} BPS exceeds pool maximum ${maxRelayFeeBPS} BPS for asset ${asset}; increase the withdrawal amount`,
+        ),
+      );
+    }
 
     const recipient = req.body.recipient
       ? getAddress(req.body.recipient.toString())

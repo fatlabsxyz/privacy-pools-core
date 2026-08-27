@@ -33,7 +33,8 @@ export class QuoteProvider {
 
   private quoteNativeTokenInWoeth(chainId: ChainId, addressIn: string, amountIn: bigint): { num: bigint; den: bigint; path: (string | number)[]; } | PromiseLike<{ num: bigint; den: bigint; path: (string | number)[]; }> {
     // Here we assume 1 WOETH ~ 1.20 ETH
-    return { num: amountIn, den: (amountIn * 12n) / 10n, path: [] };
+    // num = ETH amount, den = WOETH amount
+    return { num: (amountIn * 12n) / 10n, den: amountIn, path: [] };
   }
 
   /// If your stablecoin is not listed in cowswap we quote it against USDC in cowswap

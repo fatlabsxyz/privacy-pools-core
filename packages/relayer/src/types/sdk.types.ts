@@ -16,4 +16,13 @@ export interface SdkProviderInterface {
     scope: bigint,
     chainId: number,
   ): Promise<{ poolAddress: Address; assetAddress: Address }>;
+  getAssetConfig(
+    chainId: number,
+    assetAddress: Address,
+  ): Promise<{
+    pool: Address;
+    minimumDepositAmount: bigint;
+    vettingFeeBPS: bigint;
+    maxRelayFeeBPS: bigint;
+  }>;
 }

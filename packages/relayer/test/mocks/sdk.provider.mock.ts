@@ -19,6 +19,14 @@ export function createSdkProviderMock(overrides?: {
     }),
     calculateContext: SdkProvider.prototype.calculateContext,
     verifyWithdrawal: vi.fn().mockResolvedValue(true),
+    getAssetConfig: vi.fn().mockImplementation(async () => {
+      return {
+        pool: "0xPool" as Address,
+        minimumDepositAmount: 0n,
+        vettingFeeBPS: 100n,
+        maxRelayFeeBPS: 10_000n,
+      };
+    }),
     ...(overrides || {}),
   };
 }

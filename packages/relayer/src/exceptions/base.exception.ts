@@ -13,6 +13,7 @@ export enum ErrorCode {
   FEE_RECEIVER_MISMATCH = "FEE_RECEIVER_MISMATCH",
   FEE_MISMATCH = "FEE_MISMATCH",
   FEE_TOO_LOW = "FEE_TOO_LOW",
+  FEE_TOO_HIGH = "FEE_TOO_HIGH",
   CONTEXT_MISMATCH = "CONTEXT_MISMATCH",
   RELAYER_COMMITMENT_REJECTED = "RELAYER_COMMITMENT_REJECTED",
   INSUFFICIENT_WITHDRAWN_VALUE = "INSUFFICIENT_WITHDRAWN_VALUE",
@@ -223,6 +224,14 @@ export class WithdrawalValidationError extends RelayerError {
     );
   }
 
+  public static feeTooHigh(details: string) {
+    return new WithdrawalValidationError(
+      "Fee is higher than the maximum allowed by the pool",
+      ErrorCode.FEE_TOO_HIGH,
+      details,
+    );
+  }
+
   public static feeMismatch(details: string) {
     return new WithdrawalValidationError(
       "Fee does not match relayer fee",
@@ -281,6 +290,10 @@ export class SdkError extends RelayerError {
   public static scopeDataError(error: Error) {
     return new SdkError(`SdkError: SCOPE_DATA_ERROR ${error.message}`);
   }
+
+  public static assetConfigError(error: Error) {
+    return new SdkError(`SdkError: ASSET_CONFIG_ERROR ${error.message}`);
+  }
 }
 
 export class BlockchainError extends RelayerError {
@@ -325,5 +338,10 @@ export class QuoterError extends RelayerError {
   public static extraGasNotSupported(
   details?: Record<string, unknown> | string) {
     return new QuoterError("Extra gas is not supported", ErrorCode.UNSUPPORTED_FEATURE, details);
+  }
+
+  public static feeExceedsPoolMax(
+  details?: Record<string, unknown> | string) {
+    return new QuoterError("Quoted fee exceeds the pool's maximum relay fee; withdrawal amount is too small to cover relay costs", ErrorCode.FEE_TOO_HIGH, details);
   }
 }

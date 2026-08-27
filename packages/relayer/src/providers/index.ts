@@ -2,6 +2,7 @@ import { Web3Provider } from "./web3.provider.js";
 import { UniswapProvider } from "./uniswap/uniswap.provider.js"
 import { QuoteProvider } from "./quote.provider.js";
 import { CowProvider } from "./cow/cow.provider.js";
+import { SdkProvider } from "./sdk.provider.js";
 
 export { db } from "./db.provider.js";
 export { SdkProvider } from "./sdk.provider.js";
@@ -10,6 +11,7 @@ export { UniswapProvider } from "./uniswap/uniswap.provider.js"
 export { CowProvider } from "./cow/cow.provider.js";
 
 export const web3Provider = new Web3Provider();
+export const sdkProvider = new SdkProvider();
 export const uniswapProvider = new UniswapProvider();
 export const cowProvider = new CowProvider();
 export const quoteProvider = new QuoteProvider();

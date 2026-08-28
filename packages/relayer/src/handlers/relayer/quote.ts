@@ -84,17 +84,31 @@ export async function relayQuoteHandler(
     // so refuse to quote (and sign a commitment for) a fee that can never be relayed.
     const { maxRelayFeeBPS } = await sdkProvider.getAssetConfig(chainId, asset);
     if (feeBPS > maxRelayFeeBPS) {
+      // The variable part of the fee scales with 1/amount, so the smallest amount
+      // that fits under the pool cap at the current gas price is:
+      //   amountIn * (feeBPS - base) / (maxRelayFeeBPS - base)
+      const variableFeeBPS = feeBPS - assetConfig.fee_bps;
+      const headroomBPS = maxRelayFeeBPS - assetConfig.fee_bps;
+      const suggestedMinAmount = headroomBPS > 0n
+        ? (amountIn * variableFeeBPS + headroomBPS - 1n) / headroomBPS
+        : undefined;
       logger.warn("Quoted fee exceeds pool's max relay fee", {
         chain_id: chainId,
         asset,
         amount_in: amountIn.toString(),
         fee_bps: feeBPS.toString(),
         max_relay_fee_bps: maxRelayFeeBPS.toString(),
+        suggested_min_amount: suggestedMinAmount?.toString(),
       });
       return next(
-        QuoterError.feeExceedsPoolMax(
-          `Quoted fee ${feeBPS} BPS exceeds pool maximum ${maxRelayFeeBPS} BPS for asset ${asset}; increase the withdrawal amount`,
-        ),
+        QuoterError.feeExceedsPoolMax({
+          message: `Quoted fee ${feeBPS} BPS exceeds pool maximum ${maxRelayFeeBPS} BPS for asset ${asset}; increase the withdrawal amount`,
+          feeBPS: feeBPS.toString(),
+          maxRelayFeeBPS: maxRelayFeeBPS.toString(),
+          // Smallest withdrawal that fits under the cap at the current gas price;
+          // gas moves between quotes, so treat it as a floor, not a guarantee.
+          suggestedMinAmount: suggestedMinAmount?.toString(),
+        }),
       );
     }
 

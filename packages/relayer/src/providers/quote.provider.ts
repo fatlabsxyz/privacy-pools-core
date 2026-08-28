@@ -1,5 +1,5 @@
 import { Address, getAddress } from "viem";
-import { uniswapProvider, cowProvider } from "./index.js";
+import { uniswapProvider, cowProvider, web3Provider } from "./index.js";
 import { FRAXUSD_ADDRESS, FXUSD_ADDRESS, WOETH_ADDRESS, YUSND_ADDRESS } from "../config/index.js";
 import { ChainId } from "../types.js";
 import { createModuleLogger } from "../logger/index.js";
@@ -10,6 +10,25 @@ const logger = createModuleLogger(Quote);
 
 const USDC_ADDRESS_MAINNET = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 const USDC_ADDRESS_ARBITRUM = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831";
+
+/** WOETH is an ERC-4626 vault over OETH (1:1 with ETH); convertToAssets gives the live rate. */
+const convertToAssetsAbi = [
+  {
+    type: "function",
+    name: "convertToAssets",
+    inputs: [{ name: "shares", type: "uint256" }],
+    outputs: [{ name: "assets", type: "uint256" }],
+    stateMutability: "view",
+  },
+] as const;
+
+const ONE_WOETH = 10n ** 18n;
+
+/** The vault rate only accrues yield, so it moves slowly; cache to avoid an RPC call per quote. */
+const WOETH_RATE_CACHE_TTL_MS = 300_000;
+
+/** Fallback rate if the on-chain read fails (~the rate as of 2026). */
+const WOETH_FALLBACK_RATE = { num: 117n, den: 100n };
 
 export class QuoteProvider {
 
@@ -31,10 +50,37 @@ export class QuoteProvider {
     return { num: valueOut.amount, den: amountIn, path };
   }
 
-  private quoteNativeTokenInWoeth(chainId: ChainId, addressIn: string, amountIn: bigint): { num: bigint; den: bigint; path: (string | number)[]; } | PromiseLike<{ num: bigint; den: bigint; path: (string | number)[]; }> {
-    // Here we assume 1 WOETH ~ 1.20 ETH
+  private woethRateCache?: { num: bigint; den: bigint; fetchedAt: number; };
+
+  private async woethRate(chainId: ChainId, woethAddress: Address): Promise<{ num: bigint; den: bigint; }> {
+    if (this.woethRateCache && Date.now() - this.woethRateCache.fetchedAt < WOETH_RATE_CACHE_TTL_MS) {
+      return this.woethRateCache;
+    }
+    try {
+      const client = await web3Provider.client(chainId);
+      const assets = await client.readContract({
+        address: woethAddress,
+        abi: convertToAssetsAbi,
+        functionName: "convertToAssets",
+        args: [ONE_WOETH],
+      });
+      if (assets > 0n) {
+        this.woethRateCache = { num: assets, den: ONE_WOETH, fetchedAt: Date.now() };
+        return this.woethRateCache;
+      }
+      logger.warn("WOETH convertToAssets returned 0, using fallback rate");
+    } catch (error) {
+      logger.warn("Failed to read WOETH convertToAssets, using fallback rate", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    return WOETH_FALLBACK_RATE;
+  }
+
+  private async quoteNativeTokenInWoeth(chainId: ChainId, addressIn: Address, amountIn: bigint): Promise<{ num: bigint; den: bigint; path: (string | number)[]; }> {
     // num = ETH amount, den = WOETH amount
-    return { num: (amountIn * 12n) / 10n, den: amountIn, path: [] };
+    const rate = await this.woethRate(chainId, addressIn);
+    return { num: (amountIn * rate.num) / rate.den, den: amountIn, path: [] };
   }
 
   /// If your stablecoin is not listed in cowswap we quote it against USDC in cowswap
